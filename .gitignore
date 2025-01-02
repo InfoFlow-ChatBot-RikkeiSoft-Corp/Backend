@@ -1,0 +1,12 @@
+# Python 가상환경
+.venv/
+
+# 특정 파일 무시
+temp.md
+
+# 지금 안쓰는 디비 연결
+db_connect.py
+
+# 기타 Python 관련 파일 무시
+*.pyc
+__pycache__/
