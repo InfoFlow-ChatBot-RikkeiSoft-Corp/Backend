@@ -10,3 +10,8 @@ db_connect.py
 # 기타 Python 관련 파일 무시
 *.pyc
 __pycache__/
+
+# 테스트용 docs
+uploaded_files/test.docx
+downloaded_test.docx
+test.docx
