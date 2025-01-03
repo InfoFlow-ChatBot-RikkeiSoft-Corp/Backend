@@ -1,6 +1,6 @@
 import requests
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://127.0.0.1:8000/api"
 
 # 1. DOC/DOCX 파일 업로드 테스트
 def test_upload_docs():

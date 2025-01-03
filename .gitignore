@@ -12,6 +12,4 @@ db_connect.py
 __pycache__/
 
 # 테스트용 docs
-uploaded_files/test.docx
-downloaded_test.docx
-test.docx
+test_code.py
