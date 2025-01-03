@@ -1,4 +1,5 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os
 import shutil
@@ -18,43 +19,17 @@ else:
 
 model = genai.GenerativeModel("gemini-1.5-flash")
 
+# Initialize FastAPI app
 app = FastAPI()
 
-# 업로드된 파일을 저장할 디렉토리 설정
-UPLOAD_FOLDER = "./uploaded_files"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# TXT 파일 업로드 API
-@app.post("/upload-txt/")
-async def upload_txt(file: UploadFile = File(...)):
-    # 1. 파일 확장자 확인
-    if not file.filename.endswith(".txt"):
-        return {"error": "Only .txt files are allowed."}
-
-    # 2. 파일 저장
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    return {"message": "File uploaded successfully", "file_path": file_path}
-
-# 업로드된 파일 목록 반환 API
-@app.get("/list-txt/")
-def list_txt():
-    # 1. 디렉토리 내 TXT 파일 목록 가져오기    
-    files = [f for f in os.listdir(UPLOAD_FOLDER) if f.endswith(".txt")]
-    return {"files": files}
-
-# 특정 TXT 파일 다운로드 API
-@app.get("/download-txt/{file_name}")
-def download_txt(file_name: str):
-    # 1. 파일 경로 확인
-    file_path = os.path.join(UPLOAD_FOLDER, file_name)
-    if not os.path.exists(file_path):
-        return {"error": "File not found"}
-
-    # 2. 파일 반환
-    return FileResponse(file_path)
+# Enable CORS for frontend-backend communication
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development; restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Directory to store uploaded files
 UPLOAD_FOLDER = "./uploaded_files"
@@ -64,31 +39,63 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def read_docx(file_path):
     try:
         document = Document(file_path)
-        content = ""
-        for paragraph in document.paragraphs:
-            content += paragraph.text + "\n"
+        content = "\n".join([paragraph.text for paragraph in document.paragraphs])
         return content
     except Exception as e:
-        return f"Error reading .docx file: {str(e)}"
+        raise HTTPException(status_code=500, detail=f"Error reading .docx file: {str(e)}")
 
-# Read and process content from a .docx file
-@app.get("/read-docx/{file_name}")
-def read(file_name: str):
-    # 1. Check if the file exists
+# Upload .docx file API
+@app.post("/api/upload-docs/")
+async def upload_docs(file: UploadFile = File(...)):
+    # Validate file extension
+    if not file.filename.endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Only .docx files are allowed.")
+    
+    # Save file to upload directory
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    return {"message": "File uploaded successfully", "file_name": file.filename}
+
+# List uploaded .docx files API
+@app.get("/api/list-docs/")
+def list_docs():
+    # List .docx files in the upload directory
+    files = [f for f in os.listdir(UPLOAD_FOLDER) if f.endswith(".docx")]
+    if not files:
+        return {"message": "No files found."}
+    return {"files": files}
+
+# Download .docx file API
+@app.get("/api/download-docs/{file_name}")
+def download_docs(file_name: str):
+    # Check if the file exists
     file_path = os.path.join(UPLOAD_FOLDER, file_name)
     if not os.path.exists(file_path):
-        return {"error": "File not found"}
-
-    # 2. Read content from the file
-    content = read_docx(file_path)
-    if "Error reading" in content:
-        return {"error": content}
+        raise HTTPException(status_code=404, detail="File not found.")
     
-    # 3. Generate response using Generative AI
+    # Return the file
+    return FileResponse(file_path)
+
+# Read and process content from a .docx file API
+@app.get("/api/read-docx/{file_name}")
+def read_docx_content(file_name: str):
+    # Check if the file exists
+    file_path = os.path.join(UPLOAD_FOLDER, file_name)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    # Read the content of the file
+    content = read_docx(file_path)
+    
+    # Generate response using Generative AI
     try:
         response = model.generate_content(
-            content + " The input will be a content from the file, and not a text, answer accordingly, this is an instruction I am giving for a bot, don't include sentences like 'Okay' or 'I understand', just say 'From the file I can tell this and that.'"
+            content + " The input will be content from the file, and not a text, answer accordingly. "
+                      "This is an instruction for the bot; avoid sentences like 'Okay' or 'I understand'. "
+                      "Respond with, 'From the file I can tell this and that.'"
         )
         return {"generated_response": response.text}
     except Exception as e:
-        return {"error": f"Error generating response: {str(e)}"}
+        raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
