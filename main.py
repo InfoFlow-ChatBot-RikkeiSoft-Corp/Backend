@@ -9,12 +9,11 @@ app = FastAPI()
 UPLOAD_FOLDER = "./uploaded_files"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# TXT 파일 업로드 API
-@app.post("/upload-txt/")
-async def upload_txt(file: UploadFile = File(...)):
+@app.post("/upload-docs/")
+async def upload_docs(file: UploadFile = File(...)):
     # 1. 파일 확장자 확인
-    if not file.filename.endswith(".txt"):
-        return {"error": "Only .txt files are allowed."}
+    if not (file.filename.endswith(".doc") or file.filename.endswith(".docx")):
+        return {"error": "Only .doc or .docx files are allowed."}
 
     # 2. 파일 저장
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
@@ -23,16 +22,15 @@ async def upload_txt(file: UploadFile = File(...)):
 
     return {"message": "File uploaded successfully", "file_path": file_path}
 
-# 업로드된 파일 목록 반환 API
-@app.get("/list-txt/")
-def list_txt():
-    # 1. 디렉토리 내 TXT 파일 목록 가져오기
-    files = [f for f in os.listdir(UPLOAD_FOLDER) if f.endswith(".txt")]
+@app.get("/list-docs/")
+def list_docs():
+    # 1. 디렉토리 내 DOC/DOCX 파일 목록 가져오기
+    files = [f for f in os.listdir(UPLOAD_FOLDER) if f.endswith(".doc") or f.endswith(".docx")]
     return {"files": files}
 
-# 특정 TXT 파일 다운로드 API
-@app.get("/download-txt/{file_name}")
-def download_txt(file_name: str):
+# 특정 docs 파일 다운로드 API
+@app.get("/download-docs/{file_name}")
+def download_docs(file_name: str):
     # 1. 파일 경로 확인
     file_path = os.path.join(UPLOAD_FOLDER, file_name)
     if not os.path.exists(file_path):
