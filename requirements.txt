@@ -1,0 +1,11 @@
+Flask
+python-dotenv
+langchain
+langchain_community
+langchain_google_genai
+faiss-cpu
+requests
+tiktoken
+bs4
+google-api-python-client
+Werkzeug
