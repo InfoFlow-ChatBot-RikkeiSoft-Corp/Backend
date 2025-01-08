@@ -2,3 +2,6 @@
 .venv
 faiss_index
 Gemini_RAG.ipynb
+*.pyc
+api/__pycache__/
+services/__pycache__/
