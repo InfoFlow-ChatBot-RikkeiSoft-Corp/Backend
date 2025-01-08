@@ -3,4 +3,5 @@
 faiss_index
 Gemini_RAG.ipynb
 *.pyc
-__pycache__/
+api/__pycache__/
+services/__pycache__/
