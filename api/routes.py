@@ -2,8 +2,6 @@ from flask import Blueprint, request, jsonify, render_template
 from services.document_fetcher import DocumentFetcher
 from services.vector_db_manager import VectorDBManager
 from services.retriever_manager import RetrieverManager
-from services.answer_generator import AnswerGenerator
-from services.rag_service import RAGService
 from services.chat_generator import ChatGenerator
 
 # Blueprint 생성
@@ -14,8 +12,6 @@ document_fetcher = DocumentFetcher()
 vector_db_manager = VectorDBManager()
 retriever_manager = RetrieverManager()
 chat_generator = ChatGenerator(retriever_manager)
-answer_generator = AnswerGenerator(model="models/gemini-1.5-flash", temperature=0)
-rag_service = RAGService(retriever_manager, chat_generator)
 
 # 질문 제출 및 응답 생성 API
 @api_bp.route("/chat/<string:user_id>", methods=["POST"])
@@ -29,7 +25,6 @@ def ask(user_id):
     try:
         context = retriever_manager.retrieve_context(question)
         answer = chat_generator.generate_answer(user_id, question, context)
-        # answer = rag_service.generate_response(user_id, question)
         return jsonify({"answer": answer}), 200
     except Exception as e:
         print(f"❌ Error: {str(e)}")
@@ -37,8 +32,9 @@ def ask(user_id):
     
 @api_bp.route("/", methods=["GET"])
 def home():
-    docs_list = vector_db_manager.get_submitted_docs()  # 제출된 뉴스 문서 리스트
-    return render_template("index.html", docs_list=docs_list)
+    return jsonify({
+        "Message": "app up and running successfully"
+    })
 
 # 벡터 DB 구축 엔드포인트
 @api_bp.route("/build-vector-db", methods=["POST"])
