@@ -1,12 +1,36 @@
-from api import create_app
-import os
+from flask import Flask, jsonify
+from models import db
+from file_routes import file_routes
+from auth_routes import auth_routes
 from dotenv import load_dotenv
+import os
 
-# 환경 변수 로드
+# Load environment variables
 load_dotenv()
 
-# Flask 앱 생성 및 실행
-app = create_app()
+app = Flask(__name__)
 
-if __name__ == "__main__":
-    app.run(debug=True, port=8080)
+# Configure database
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize database
+db.init_app(app)
+
+# Register Blueprints
+app.register_blueprint(file_routes, url_prefix='/api/files')
+app.register_blueprint(auth_routes, url_prefix='/api/auth')
+
+@app.route('/')
+def index():
+    return jsonify({"message": "Server is running"}), 200
+
+# Create database tables
+try:
+    with app.app_context():
+        db.create_all()
+except Exception as e:
+    print(f"Database setup error: {str(e)}")
+
+if __name__ == '__main__':
+    app.run(debug=True)
