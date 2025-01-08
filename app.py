@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
-from models import db
-from file_routes import file_routes
-from auth_routes import auth_routes
+from services.models import db
+from api.file_routes import file_routes
+from api.auth_routes import auth_routes
 from dotenv import load_dotenv
 import os
 
