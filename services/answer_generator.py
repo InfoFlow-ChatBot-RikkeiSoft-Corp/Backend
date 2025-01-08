@@ -1,5 +1,5 @@
 from langchain_google_genai import GoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate, MessagesPlaceholder
 
 class AnswerGenerator:
     def __init__(self, model="models/gemini-1.5-flash", temperature=0.7):
@@ -21,6 +21,7 @@ class AnswerGenerator:
 
             #Answer:"""
         )
+        self.runnable = self.prompt_template | self.llm # 프롬프트와 모델을 연결하여 runnable 객체 생성
 
     def generate_answer(self, question, context):
         """

@@ -1,12 +1,12 @@
 class RAGService:
-    def __init__(self, retriever_manager, answer_generator):
+    def __init__(self, retriever_manager, chat_generator):
         self.retriever_manager = retriever_manager
-        self.answer_generator = answer_generator
+        self.chat_generator = chat_generator
 
-    def generate_response(self, question):
+    def generate_response(self, user_id, question):
         """
         RAG 파이프라인을 통해 최종 응답을 생성.
         """
         context = self.retriever_manager.retrieve_context(question)
-        answer = self.answer_generator.generate_answer(question, context)
+        answer = self.chat_generator.generate_answer(user_id, question, context)
         return answer

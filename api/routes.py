@@ -4,6 +4,7 @@ from services.vector_db_manager import VectorDBManager
 from services.retriever_manager import RetrieverManager
 from services.answer_generator import AnswerGenerator
 from services.rag_service import RAGService
+from services.chat_generator import ChatGenerator
 
 # Blueprint 생성
 api_bp = Blueprint('api', __name__)
@@ -12,12 +13,13 @@ api_bp = Blueprint('api', __name__)
 document_fetcher = DocumentFetcher()
 vector_db_manager = VectorDBManager()
 retriever_manager = RetrieverManager()
+chat_generator = ChatGenerator(retriever_manager)
 answer_generator = AnswerGenerator(model="models/gemini-1.5-flash", temperature=0)
-rag_service = RAGService(retriever_manager, answer_generator)
+rag_service = RAGService(retriever_manager, chat_generator)
 
 # 질문 제출 및 응답 생성 API
-@api_bp.route("/chat", methods=["POST"])
-def ask():
+@api_bp.route("/chat/<string:user_id>", methods=["POST"])
+def ask(user_id):
     data = request.get_json()
     question = data.get("question")
 
@@ -25,7 +27,9 @@ def ask():
         return jsonify({"error": "❌ 질문을 입력해주세요!"}), 400
 
     try:
-        answer = rag_service.generate_response(question)
+        context = retriever_manager.retrieve_context(question)
+        answer = chat_generator.generate_answer(user_id, question, context)
+        # answer = rag_service.generate_response(user_id, question)
         return jsonify({"answer": answer}), 200
     except Exception as e:
         print(f"❌ Error: {str(e)}")
