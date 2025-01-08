@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, User, Log
+from services.models import db, User, Log
 import sqlalchemy as sa
 from datetime import datetime, timedelta
 import jwt
