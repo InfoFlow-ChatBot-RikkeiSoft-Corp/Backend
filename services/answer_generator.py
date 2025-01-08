@@ -27,4 +27,4 @@ class AnswerGenerator:
         질문과 문맥을 기반으로 Google Generative AI를 사용하여 응답 생성.
         """
         prompt = self.prompt_template.format(question=question, context=context)
-        return self.llm(prompt)
+        return self.llm.invoke(prompt)

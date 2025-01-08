@@ -21,6 +21,6 @@ class RetrieverManager:
     def retrieve_context(self, question, k=3):
         if not self.vectorstore:
             raise RuntimeError("FAISS 벡터스토어가 초기화되지 않았습니다.")
-        docs = self.vectorstore.as_retriever().get_relevant_documents(question)
+        docs = self.vectorstore.as_retriever().invoke(question)
         context = "\n\n".join([doc.page_content for doc in docs])
         return context if context else "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다."

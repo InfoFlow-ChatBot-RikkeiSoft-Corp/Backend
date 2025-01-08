@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify, render_template
 from services.document_fetcher import DocumentFetcher
 from services.vector_db_manager import VectorDBManager
-from services.query_generator import QueryGenerator
 from services.retriever_manager import RetrieverManager
 from services.answer_generator import AnswerGenerator
 from services.rag_service import RAGService
@@ -29,6 +28,7 @@ def ask():
         answer = rag_service.generate_response(question)
         return jsonify({"answer": answer}), 200
     except Exception as e:
+        print(f"❌ Error: {str(e)}")
         return jsonify({"error": f"❌ 오류 발생: {str(e)}"}), 500
     
 @api_bp.route("/", methods=["GET"])
