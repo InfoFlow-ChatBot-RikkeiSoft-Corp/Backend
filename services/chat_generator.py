@@ -52,6 +52,9 @@ class ChatGenerator:
         chat_history.add_message(AIMessage(content=content))
 
     def generate_answer(self, user_id, question, context):
+        # context 구조에서 본문과 참조 정보를 분리
+        context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
+        references = context.get("references", [])
 
         # 사용자 질문 메시지 추가
         self.add_user_message(user_id, question)
@@ -60,12 +63,17 @@ class ChatGenerator:
         chat_history = self.get_session_history(user_id).messages
 
         # LLM 호출 메시지 리스트 생성
-        input_messages = chat_history + [HumanMessage(content=f"질문: {question}\n문맥: {context}")]
+        input_messages = chat_history + [HumanMessage(content=f"질문: {question}\n문맥: {context_text}")]
 
         try:
             # LLM 호출 및 응답 생성
             response = self.llm.invoke(input_messages)
             answer = response.content if isinstance(response, AIMessage) else response
+
+            # 참조 문서 정보를 답변에 추가
+            if references:
+                reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
+                answer += f"\n\n참고 자료:\n{reference_texts}"
 
             # AI 응답 메시지 추가
             self.add_ai_message(user_id, answer)
