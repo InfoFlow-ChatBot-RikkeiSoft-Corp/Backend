@@ -2,25 +2,22 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 class RetrieverManager:
-    def __init__(self, vectorstore_path="faiss_index"):
-        # Embedding 설정
-        embedding = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    def __init__(self, vector_db_manager):
+        """
+        VectorDBManager 객체를 통해 벡터스토어를 관리.
+        """
+        self.vector_db_manager = vector_db_manager
 
+    def retrieve_context(self, question, k=3, search_type="similarity", similarity_threshold=0.7):
+        """
+        질문에 대한 컨텍스트를 검색.
+        """
         try:
-            # FAISS 벡터스토어 로드 (보안 설정 추가)
-            self.vectorstore = FAISS.load_local(
-                vectorstore_path,
-                embedding,
-                allow_dangerous_deserialization=True  # 역직렬화 허용
+            docs = self.vector_db_manager.search(
+                query=question, k=k, search_type=search_type, similarity_threshold=similarity_threshold
             )
-            print("✅ FAISS 벡터스토어가 성공적으로 로드되었습니다.")
+            # 검색된 문서를 텍스트로 변환
+            context = "\n\n".join([doc.page_content for doc in docs])
+            return context if context else "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다."
         except Exception as e:
-            print(f"❌ FAISS 벡터스토어 로드 실패: {str(e)}")
-            self.vectorstore = None
-
-    def retrieve_context(self, question, k=3):
-        if not self.vectorstore:
-            raise RuntimeError("FAISS 벡터스토어가 초기화되지 않았습니다.")
-        docs = self.vectorstore.as_retriever().invoke(question)
-        context = "\n\n".join([doc.page_content for doc in docs])
-        return context if context else "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다."
+            raise RuntimeError(f"Error during context retrieval: {e}")
