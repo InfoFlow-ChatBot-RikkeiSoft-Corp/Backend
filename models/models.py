@@ -40,3 +40,14 @@ class Log(db.Model):
     def __init__(self, user_id, description=None):
         self.user_id = user_id
         self.description = description
+
+class ChatHistory(db.Model):
+    __tablename__ = 'chat_history'
+    id = db.Column(db.Integer, primary_key=True)  # 고유 ID
+    user_id = db.Column(db.String(255), nullable=False)  # 사용자 ID
+    question = db.Column(db.Text, nullable=False)  # 사용자 질문
+    answer = db.Column(db.Text, nullable=False)  # AI 응답
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # 시간
+
+    def __repr__(self):
+        return f"<ChatHistory {self.user_id} - {self.question[:20]}...>"

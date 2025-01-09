@@ -11,3 +11,6 @@ google-api-python-client
 Werkzeug
 PyJWT
 pytz
+Flask-SQLAlchemy
+Flask-Bcrypt
+psycopg2-binary

@@ -3,9 +3,12 @@ from services.document_fetcher import DocumentFetcher
 from services.vector_db_manager import VectorDBManager
 from services.retriever_manager import RetrieverManager
 from services.chat_generator import ChatGenerator
+from services.chat_service import ChatService
 
 # Blueprint 생성
 api_bp = Blueprint('api', __name__)
+chat_bp = Blueprint('chat', __name__)
+weblink_bp = Blueprint('weblink', __name__)
 
 # 클래스 인스턴스 생성
 document_fetcher = DocumentFetcher()
@@ -14,7 +17,7 @@ retriever_manager = RetrieverManager()
 chat_generator = ChatGenerator(retriever_manager)
 
 # 질문 제출 및 응답 생성 API
-@api_bp.route("/chat/<string:user_id>", methods=["POST"])
+@chat_bp.route("/<string:user_id>", methods=["POST"])
 def ask(user_id):
     data = request.get_json()
     question = data.get("question")
@@ -25,11 +28,24 @@ def ask(user_id):
     try:
         context = retriever_manager.retrieve_context(question)
         answer = chat_generator.generate_answer(user_id, question, context)
+        ChatService.save_chat(user_id=user_id, question=question, answer=answer)
         return jsonify({"answer": answer}), 200
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         return jsonify({"error": f"❌ 오류 발생: {str(e)}"}), 500
-    
+# 채팅 기록 조회 엔드포인트
+@chat_bp.route("/<string:user_id>", methods=["GET"])
+def get_chat_history(user_id):
+    chat_history = ChatService.get_chat_history(user_id)
+    if not chat_history:
+        return jsonify({"message": "🔍 채팅 기록이 없습니다."}), 404
+
+    return jsonify(
+        [
+            {"question": chat.question, "answer": chat.answer, "timestamp": chat.timestamp.isoformat()}
+            for chat in chat_history
+        ]
+    ), 200  
 @api_bp.route("/", methods=["GET"])
 def home():
     return jsonify({
@@ -37,8 +53,8 @@ def home():
     })
 
 # 벡터 DB 구축 엔드포인트
-@api_bp.route("/build-vector-db", methods=["POST"])
-def build_vector_db():
+@weblink_bp.route("/upload", methods=["POST"])
+def weblink_build_vector_db():
     title = request.form.get("title")
     url = request.form.get("url")
     if not title or not url:
@@ -50,14 +66,7 @@ def build_vector_db():
 
         # 벡터 DB에 추가
         vector_details = vector_db_manager.add_doc_to_db(doc)
-        response_html = f"<h3>✅ '{title}' 벡터 DB가 성공적으로 구축되었습니다!</h3><hr>"
-        for vector in vector_details:
-            response_html += f"""
-            <p><b>Vector {vector["vector_index"]}:</b></p>
-            <p>Embedding (first 5 elements): {vector["embedding_excerpt"]}</p>
-            <p>Document excerpt: {vector["content_excerpt"]}...</p>
-            <hr>
-            """
-        return response_html
+
+        return jsonify({"title": title}), 200
     except RuntimeError as e:
         return f"❌ 오류 발생: {str(e)}", 500

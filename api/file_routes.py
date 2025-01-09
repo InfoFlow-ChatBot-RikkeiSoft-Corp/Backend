@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from services.models import db, FileMetadata,User
+from models.models import db, FileMetadata,User
 import sqlalchemy as sa
 from pytz import timezone
 
