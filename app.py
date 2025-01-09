@@ -1,7 +1,8 @@
 from flask import Flask, jsonify
-from services.models import db
+from models.models import db
 from api.file_routes import file_routes
 from api.auth_routes import auth_routes
+from api.routes import chat_bp, weblink_bp
 from dotenv import load_dotenv
 import os
 from pytz import timezone
@@ -21,6 +22,8 @@ db.init_app(app)
 # Register Blueprints
 app.register_blueprint(file_routes, url_prefix='/api/files')
 app.register_blueprint(auth_routes, url_prefix='/api/auth')
+app.register_blueprint(chat_bp, url_prefix='/api/chat')
+app.register_blueprint(weblink_bp, url_prefix='/api/weblink')
 
 @app.route('/')
 def index():

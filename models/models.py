@@ -40,14 +40,3 @@ class Log(db.Model):
     def __init__(self, user_id, description=None):
         self.user_id = user_id
         self.description = description
-
-class Token(db.Model):
-    __tablename__ = 'tokens'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    token = db.Column(db.Text, nullable=False, unique=True)
-    issued_at = db.Column(db.DateTime, default=datetime.utcnow)
-    revoked = db.Column(db.Boolean, default=False)
-
-    user = db.relationship('User', backref=db.backref('tokens', lazy=True))

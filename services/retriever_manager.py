@@ -4,19 +4,22 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 class RetrieverManager:
     def __init__(self, vectorstore_path="faiss_index"):
         # Embedding 설정
-        embedding = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+        self.embedding = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
         try:
             # FAISS 벡터스토어 로드 (보안 설정 추가)
             self.vectorstore = FAISS.load_local(
                 vectorstore_path,
-                embedding,
+                self.embedding,
                 allow_dangerous_deserialization=True  # 역직렬화 허용
             )
             print("✅ FAISS 벡터스토어가 성공적으로 로드되었습니다.")
         except Exception as e:
-            print(f"❌ FAISS 벡터스토어 로드 실패: {str(e)}")
-            self.vectorstore = None
+            print("🔄 빈 벡터스토어를 생성 중입니다...")
+            # 빈 벡터스토어 생성 및 저장
+            self.vectorstore = FAISS.from_texts([], embedding=self.embedding)
+            self.vectorstore.save_local("faiss_index")
+            print("✅ 빈 벡터스토어 생성 완료")
 
     def retrieve_context(self, question, k=3):
         if not self.vectorstore:

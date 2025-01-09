@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 from flask import Blueprint, request, jsonify, redirect, url_for
 from services.models import db, User, Log, Token, FileMetadata
+=======
+from flask import Blueprint, request, jsonify
+from models.models import db, User, Log
+>>>>>>> 3cce88b7bfaef9686e8ffc8c27fb39a63a285319
 import sqlalchemy as sa
 from datetime import datetime, timedelta
 import jwt
