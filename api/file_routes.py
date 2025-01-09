@@ -1,10 +1,6 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-<<<<<<< HEAD
-from services.models import db, FileMetadata,User
-=======
 from models.models import db, FileMetadata,User
->>>>>>> 3cce88b7bfaef9686e8ffc8c27fb39a63a285319
 import sqlalchemy as sa
 from pytz import timezone
 
