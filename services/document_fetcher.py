@@ -1,6 +1,6 @@
 from langchain_community.document_loaders import WebBaseLoader
 from bs4 import SoupStrainer
-from .docs import Docs  # Docs 클래스 import
+from services.docs import Docs  # Docs 클래스 import
 
 class DocumentFetcher:
     def __init__(self):
