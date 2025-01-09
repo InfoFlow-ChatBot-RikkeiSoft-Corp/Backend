@@ -1,7 +1,14 @@
-from langchain_community.document_loaders import WebBaseLoader
-from langchain.document_loaders import UnstructuredWordDocumentLoader
+from langchain_community.document_loaders import PDFPlumberLoader
+from langchain_community.vectorstores import FAISS
 from bs4 import SoupStrainer
-from services.docs import Docs
+from langchain.schema import Document as LangChainDocument
+from pdf2image import convert_from_path
+import pytesseract
+from docs import Docs
+
+from langchain_community.document_loaders import WebBaseLoader
+from bs4 import SoupStrainer
+
 
 class DocumentFetcher:
     def __init__(self):
@@ -24,21 +31,86 @@ class DocumentFetcher:
             return Docs.from_web(title=title, url=url, content=content)
 
         except Exception as e:
-
             raise RuntimeError(f"Error fetching document: {e}")
+    
+    def load_txt(self, file_path):
+        """
+        Load a .txt file and return a Docs object.
+
+        :param file_path: Path to the .txt file
+        :return: Docs object containing title, file path, and content
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            return Docs.from_file(file_path=file_path, content=content)
+        except Exception as e:
+            raise RuntimeError(f"Error loading .txt file: {e}")
+
     def load_docx(self, file_path):
         """
         Load a .docx file and return a Docs object.
+
+        :param file_path: Path to the .docx file
+        :return: Docs object containing title, file path, and content
         """
         try:
-            loader = UnstructuredWordDocumentLoader(file_path)
+            # Use UnstructuredWordDocumentLoader to load .docx files
+            loader = PDFPlumberLoader(file_path)
             docs = loader.load()
 
             if not docs:
                 raise RuntimeError("No content found in the .docx file.")
 
+            # Extract content from the first document
             content = docs[0].page_content
+
             return Docs.from_file(file_path=file_path, content=content)
 
         except Exception as e:
             raise RuntimeError(f"Error loading .docx file: {e}")
+        
+    def extract_text_with_ocr(self, file_path):
+        """
+        Perform OCR on an image-based PDF and return extracted text.
+        """
+        try:
+            images = convert_from_path(file_path)
+            text = ""
+            for page_num, image in enumerate(images, start=1):
+                print(f"Processing page {page_num} with OCR...")
+                text += pytesseract.image_to_string(image, lang='eng')
+
+            if text.strip():
+                print("Extracted content using OCR (first 500 characters):")
+                print(text[:500])
+            else:
+                print("No text could be extracted using OCR.")
+            return text
+        except Exception as e:
+            print(f"Error during OCR processing: {e}")
+            return ""
+
+    def load_pdf(self, file_path):
+        """
+        Load a .pdf file and return LangChain Documents. Use OCR as a fallback if necessary.
+        """
+        try:
+            loader = PDFPlumberLoader(file_path)
+            documents = loader.load_and_split()
+
+            if documents:
+                print("Extracted content using PDFPlumberLoader (first document):")
+                print(documents[0].page_content[:500])
+                return [LangChainDocument(page_content=doc.page_content, metadata={"source": file_path}) for doc in documents]
+            else:
+                print("No content extracted using PDFPlumberLoader. Falling back to OCR...")
+                ocr_text = self.extract_text_with_ocr(file_path)
+                if ocr_text.strip():
+                    return [LangChainDocument(page_content=ocr_text, metadata={"source": file_path})]
+                else:
+                    return []
+
+        except Exception as e:
+            print(f"Error processing PDF file: {e}")
+            return []

@@ -4,6 +4,7 @@ from docs import Docs
 from services.vector_db_manager import VectorDBManager
 from services.document_fetcher import DocumentFetcher
 from services.answer_generator import AnswerGenerator
+from services.chat_generator import ChatGenerator
 
 class RAGManager:
     def __init__(self, retriever_manager, answer_generator, document_fetcher, vector_db_manager):
@@ -13,7 +14,6 @@ class RAGManager:
         self.retriever_manager = retriever_manager
         self.answer_generator = answer_generator
         self.document_fetcher = document_fetcher
-        self.vector_db_manager = vector_db_manager
         
     def add_documents(self, file_paths):
         """
@@ -38,7 +38,7 @@ class RAGManager:
             print(f"Fetching document from URL: {url}")
             doc = self.doc_fetcher.fetch(title, url)
             langchain_doc = doc.to_langchain_document()
-            self.vector_db.add_documents([langchain_doc])
+            self.retriever_manager.vector_db_manager.add_documents([langchain_doc])
             print(f"Successfully added document from URL: {url}")
         except Exception as e:
             print(f"Failed to fetch document from URL '{url}': {e}")
@@ -53,5 +53,4 @@ class RAGManager:
         if not context or context == "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다.":
             return context
 
-        # AnswerGenerator를 통해 답변 생성
         return self.answer_generator.generate_answer(question=query, context=context)

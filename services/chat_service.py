@@ -1,5 +1,7 @@
 from models.models import ChatHistory, db
 
+## 사용 시 기존 로직에 통합 필요
+
 class ChatService:
     @staticmethod
     def save_chat(user_id, question, answer):
