@@ -24,8 +24,8 @@ class DocumentFetcher:
             return Docs.from_web(title=title, url=url, content=content)
 
         except Exception as e:
-            raise RuntimeError(f"Error fetching document: {e}")
 
+            raise RuntimeError(f"Error fetching document: {e}")
     def load_docx(self, file_path):
         """
         Load a .docx file and return a Docs object.
