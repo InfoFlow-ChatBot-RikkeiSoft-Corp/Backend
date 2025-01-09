@@ -26,6 +26,7 @@ class DocumentFetcher:
         except Exception as e:
 
             raise RuntimeError(f"Error fetching document: {e}")
+
     def load_docx(self, file_path):
         """
         Load a .docx file and return a Docs object.
