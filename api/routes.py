@@ -17,7 +17,7 @@ retriever_manager = RetrieverManager()
 chat_generator = ChatGenerator(retriever_manager)
 
 # 질문 제출 및 응답 생성 API
-@chat_bp.route("/chat/<string:user_id>", methods=["POST"])
+@chat_bp.route("/<string:user_id>", methods=["POST"])
 def ask(user_id):
     data = request.get_json()
     question = data.get("question")
@@ -34,7 +34,7 @@ def ask(user_id):
         print(f"❌ Error: {str(e)}")
         return jsonify({"error": f"❌ 오류 발생: {str(e)}"}), 500
 # 채팅 기록 조회 엔드포인트
-@chat_bp.route("/chat/<string:user_id>", methods=["GET"])
+@chat_bp.route("/<string:user_id>", methods=["GET"])
 def get_chat_history(user_id):
     chat_history = ChatService.get_chat_history(user_id)
     if not chat_history:
@@ -53,7 +53,7 @@ def home():
     })
 
 # 벡터 DB 구축 엔드포인트
-@weblink_bp.route("/weblink", methods=["POST"])
+@weblink_bp.route("/upload", methods=["POST"])
 def weblink_build_vector_db():
     title = request.form.get("title")
     url = request.form.get("url")
