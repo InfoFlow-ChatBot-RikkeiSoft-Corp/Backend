@@ -21,6 +21,7 @@ chat_generator = ChatGenerator(retriever_manager)
 def ask(user_id):
     data = request.get_json()
     question = data.get("question")
+    print(question)
 
     if not question:
         return jsonify({"error": "❌ 질문을 입력해주세요!"}), 400
@@ -66,7 +67,9 @@ def weblink_build_vector_db():
 
         # 벡터 DB에 추가
         vector_details = vector_db_manager.add_doc_to_db(doc)
-
+        print(f"✅ '{title}' 벡터 DB에 성공적으로 저장되었습니다.")
+        print("벡터 정보:", vector_details)
+        
         return jsonify({"title": title}), 200
     except RuntimeError as e:
         return f"❌ 오류 발생: {str(e)}", 500
