@@ -32,21 +32,6 @@ class DocumentFetcher:
 
         except Exception as e:
             raise RuntimeError(f"Error fetching document: {e}")
-    
-    def load_txt(self, file_path):
-        """
-        Load a .txt file and return a Docs object.
-
-        :param file_path: Path to the .txt file
-        :return: Docs object containing title, file path, and content
-        """
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
-            return Docs.from_file(file_path=file_path, content=content)
-        except Exception as e:
-            raise RuntimeError(f"Error loading .txt file: {e}")
-
     def load_docx(self, file_path):
         """
         Load a .docx file and return a Docs object.
