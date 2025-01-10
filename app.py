@@ -4,12 +4,18 @@ from api.file_routes import file_routes
 from api.auth_routes import auth_routes
 from api.routes import chat_bp, weblink_bp
 from dotenv import load_dotenv
+from flask import Flask
+from flask_cors import CORS
 import os
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+
+# 앱에 CORS 설정 적용
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
 
 # Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')

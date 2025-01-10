@@ -78,75 +78,30 @@ def signup():
         db.session.rollback()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
-@auth_routes.route('/login', methods=['POST'])
+@auth_routes.route('/login', methods=['POST', 'OPTIONS'])
 def login():
-    """Authenticate a user, log their login details, and return a JWT token."""
-    data = request.get_json()
+    if request.method == 'OPTIONS':
+        # Preflight 요청 처리
+        response = app.response_class()
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
 
-    # Debug: Log incoming data
-    app.logger.debug(f"Login attempt received with data: {data}")
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data or 'username' not in data or 'password' not in data:
+            return jsonify({'error': 'Username and password are required'}), 400
 
-    if not data or 'username' not in data or 'password' not in data:
-        app.logger.error("Missing username or password in request")
-        return jsonify({'error': 'Username and password are required'}), 400
+        username = data.get('username')
+        password = data.get('password')
 
-    username = data.get('username')
-    password = data.get('password')
+        user = User.query.filter_by(username=username).first()
+        if not user or not user.check_password(password):
+            return jsonify({'error': 'Invalid credentials'}), 401
 
-    # Debug: Log received username
-    app.logger.debug(f"Attempting to authenticate user: {username}")
-
-    user = User.query.filter_by(username=username).first()
-
-    # Debug: Check if user exists
-    if not user:
-        app.logger.warning(f"User not found: {username}")
-        return jsonify({'error': 'Invalid credentials'}), 401
-
-    # Debug: Verify password
-    if not user.check_password(password):
-        app.logger.warning(f"Invalid password for user: {username}")
-        return jsonify({'error': 'Invalid credentials'}), 401
-
-    # Check employee in company database
-    employee = db.session.execute(
-        sa.text("SELECT * FROM company_employee WHERE email = :email"),
-        {'email': username}
-    ).mappings().fetchone()
-
-    # Debug: Log employee lookup
-    app.logger.debug(f"Employee lookup result for {username}: {employee}")
-
-    if not employee:
-        app.logger.warning(f"User {username} not found in company employee database")
-        return jsonify({'error': 'User not found in company employee database'}), 403
-
-    # Get role or set default
-    role = employee.get('role', 'unknown')
-
-    # Generate token
-    try:
-        token = jwt.encode({
-            'user_id': user.id,
-            'exp': current_time + timedelta(hours=1)
-        }, SECRET_KEY, algorithm='HS256')
-        app.logger.debug(f"JWT generated for user {username}")
-    except Exception as e:
-        app.logger.error(f"Failed to generate JWT for user {username}: {str(e)}")
-        return jsonify({'error': 'Failed to generate authentication token'}), 500
-
-    # Log login event
-    try:
-        log_entry = Log(user_id=user.id, description=f"User {username} logged in")
-        db.session.add(log_entry)
-        db.session.commit()
-        app.logger.info(f"User {username} logged in successfully")
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Failed to log login event for user {username}: {str(e)}")
-        return jsonify({'error': f"Failed to log login event: {str(e)}"}), 500
-
-    return jsonify({'message': 'Login successful', 'token': token, 'role': role}), 200
+        token = jwt.encode({'user_id': user.id, 'exp': datetime.utcnow() + timedelta(hours=1)}, SECRET_KEY, algorithm='HS256')
+        return jsonify({'message': 'Login successful', 'token': token}), 200
 
 
 @auth_routes.route('/logout', methods=['POST'])
