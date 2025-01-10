@@ -14,7 +14,7 @@ weblink_bp = Blueprint('weblink', __name__)
 document_fetcher = DocumentFetcher()
 vector_db_manager = VectorDBManager()
 retriever_manager = RetrieverManager()
-chat_generator = ChatGenerator(retriever_manager)
+
 
 # 질문 제출 및 응답 생성 API
 @chat_bp.route("/<string:user_id>", methods=["POST"])
@@ -27,7 +27,8 @@ def ask(user_id):
         return jsonify({"error": "❌ 질문을 입력해주세요!"}), 400
 
     try:
-        context = retriever_manager.retrieve_context(question)
+        chat_generator = ChatGenerator(retriever_manager)
+        context = retriever_manager.retrieve_context(question, 3)
         answer = chat_generator.generate_answer(user_id, question, context)
         ChatService.save_chat(user_id=user_id, question=question, answer=answer)
         return jsonify({"answer": answer}), 200
