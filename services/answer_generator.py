@@ -26,4 +26,18 @@ class AnswerGenerator:
 
         docs_content = "\n".join([f"Document {i + 1}: {doc.page_content}" for i, doc in enumerate(documents)])
         full_prompt = self.prompt_template.format(documents=docs_content, query=question)
-        return self.llm(full_prompt).content
+
+        try:
+            # Use invoke to handle LLM response
+            response = self.llm.invoke(full_prompt)
+
+            # Check if response has content attribute or is a plain string
+            if hasattr(response, 'content'):
+                return response.content
+            elif isinstance(response, str):
+                return response
+            else:
+                raise ValueError("Unexpected response format from LLM.")
+        except Exception as e:
+            raise RuntimeError(f"Error generating answer: {e}")
+

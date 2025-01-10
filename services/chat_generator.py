@@ -4,7 +4,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import GoogleGenerativeAI
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from services.vector_db_manager import VectorDBManager
+from vector_db_manager import VectorDBManager
 
 class ChatGenerator:
     def __init__(self, vector_db_manager):

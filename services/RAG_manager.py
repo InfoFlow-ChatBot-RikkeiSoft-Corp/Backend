@@ -1,10 +1,11 @@
 import os
 from langchain.prompts import PromptTemplate
-from services.vector_db_manager import VectorDBManager
-from services.document_fetcher import DocumentFetcher
-from services.answer_generator import AnswerGenerator
-from services.chat_generator import ChatGenerator
-from services.docs import Docs
+from langchain.schema import Document as LangChainDocument
+from vector_db_manager import VectorDBManager
+from document_fetcher import DocumentFetcher
+from answer_generator import AnswerGenerator
+from chat_generator import ChatGenerator
+from docs import Docs
 
 class RAGManager:
     def __init__(self, retriever_manager, answer_generator, document_fetcher, vector_db_manager):
@@ -50,7 +51,15 @@ class RAGManager:
         context = self.retriever_manager.retrieve_context(
             question=query, k=k, search_type=retriever_type, similarity_threshold=similarity_threshold
         )
-        if not context or context == "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다.":
+
+        if not context or context["context"] == "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다.":
             return context
 
-        return self.answer_generator.generate_answer(question=query, context=context)
+        # Convert retrieved context into LangChainDocument objects
+        documents = [
+            LangChainDocument(page_content=ref.get("context", ""), metadata=ref)
+            for ref in context.get("references", [])
+        ]
+
+        # Pass the properly formatted documents to generate_answer
+        return self.answer_generator.generate_answer(question=query, documents=documents)

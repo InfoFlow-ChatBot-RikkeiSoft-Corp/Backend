@@ -72,7 +72,7 @@ class VectorDBManager:
             raise ValueError("Vectorstore is not initialized. Add documents first.")
 
         retriever = self.get_retriever(search_type, k, similarity_threshold)
-        return retriever.get_relevant_documents(query)
+        return retriever.invoke(query)
 
     def get_retriever(self, search_type, k, similarity_threshold):
         """Retrieve documents from the vectorstore."""
