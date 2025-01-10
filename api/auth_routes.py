@@ -78,44 +78,31 @@ def signup():
         db.session.rollback()
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
-@auth_routes.route('/login', methods=['POST'])
+@auth_routes.route('/login', methods=['POST', 'OPTIONS'])
 def login():
-    """Authenticate a user, log their login details, and return a JWT token."""
-    data = request.get_json()
-    if not data or 'username' not in data or 'password' not in data:
-        return jsonify({'error': 'Username and password are required'}), 400
+    if request.method == 'OPTIONS':
+        # Preflight 요청 처리
+        response = app.response_class()
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
 
-    username = data.get('username')
-    password = data.get('password')
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data or 'username' not in data or 'password' not in data:
+            return jsonify({'error': 'Username and password are required'}), 400
 
-    user = User.query.filter_by(username=username).first()
-    if not user or not user.check_password(password):
-        return jsonify({'error': 'Invalid credentials'}), 401
+        username = data.get('username')
+        password = data.get('password')
 
-    employee = db.session.execute(
-        sa.text("SELECT * FROM company_employee WHERE email = :email"),
-        {'email': username}
-    ).mappings().fetchone()
+        user = User.query.filter_by(username=username).first()
+        if not user or not user.check_password(password):
+            return jsonify({'error': 'Invalid credentials'}), 401
 
-    if not employee:
-        return jsonify({'error': 'User not found in company employee database'}), 403
+        token = jwt.encode({'user_id': user.id, 'exp': datetime.utcnow() + timedelta(hours=1)}, SECRET_KEY, algorithm='HS256')
+        return jsonify({'message': 'Login successful', 'token': token}), 200
 
-    role = employee.get('role', 'unknown')
-
-    token = jwt.encode({
-        'user_id': user.id,
-        'exp': current_time + timedelta(hours=1)
-    }, SECRET_KEY, algorithm='HS256')
-
-    try:
-        log_entry = Log(user_id=user.id, description=f"User {username} logged in")
-        db.session.add(log_entry)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f"Failed to log login event: {str(e)}"}), 500
-
-    return jsonify({'message': 'Login successful', 'token': token, 'role': role}), 200
 
 @auth_routes.route('/logout', methods=['POST'])
 @token_required

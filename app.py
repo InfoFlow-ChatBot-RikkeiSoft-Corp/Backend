@@ -5,12 +5,18 @@ from api.auth_routes import auth_routes
 from api.routes import chat_bp, weblink_bp
 from api.admin_routes import admin_bp
 from dotenv import load_dotenv
+from flask import Flask
+from flask_cors import CORS
 import os
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+
+# 앱에 CORS 설정 적용
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
 
 # Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
@@ -19,12 +25,27 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize database
 db.init_app(app)
 
+USER_AGENT = os.getenv("USER_AGENT")
+if USER_AGENT:
+    os.environ["USER_AGENT"] = USER_AGENT
+
+
 # Register Blueprints
 app.register_blueprint(file_routes, url_prefix='/api/files')
 app.register_blueprint(auth_routes, url_prefix='/api/auth')
 app.register_blueprint(chat_bp, url_prefix='/api/chat')
 app.register_blueprint(weblink_bp, url_prefix='/api/weblink')
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
+
+# Access environment variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
+POSTGRES_USER = os.getenv("POSTGRES_USER")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+POSTGRES_DB = os.getenv("POSTGRES_DB")
 
 @app.route('/')
 def index():
