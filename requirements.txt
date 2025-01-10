@@ -14,3 +14,7 @@ pytz
 Flask-SQLAlchemy
 Flask-Bcrypt
 psycopg2-binary
+flask_cors
+langchain_openai
+pytesseract
+pdf2image

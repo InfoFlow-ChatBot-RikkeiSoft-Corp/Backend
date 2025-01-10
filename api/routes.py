@@ -6,6 +6,8 @@ from services.retriever_manager import RetrieverManager
 from services.chat_generator import ChatGenerator
 from services.chat_service import ChatService
 from services.RAG_manager import RAGManager
+from werkzeug.utils import secure_filename
+
 from dotenv import load_dotenv
 import os
 
@@ -24,6 +26,7 @@ if not (GOOGLE_API_KEY or OPENAI_API_KEY):
 api_bp = Blueprint('api', __name__)
 chat_bp = Blueprint('chat', __name__)
 weblink_bp = Blueprint('weblink', __name__)
+pdf_bp = Blueprint('pdf', __name__)
 
 # 클래스 인스턴스 생성
 document_fetcher = DocumentFetcher()
@@ -122,3 +125,31 @@ def rag_query():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+# 벡터 DB 구축 엔드포인트
+@pdf_bp.route("/upload", methods=["POST"])
+def pdf_build_vector_db():
+    if "file" not in request.files:
+        return jsonify({"error": "❌ PDF 파일을 업로드해주세요!"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "❌ 파일 이름이 비어 있습니다."}), 400
+
+    file_path = os.path.join("temp_uploads", secure_filename(file.filename))
+    file.save(file_path)
+
+    try:
+        # 문서 가져오기
+        docs = document_fetcher.load_pdf(file_path)
+        if docs:
+            # PDF 파일 벡터 DB에 추가
+            vector_details = vector_db_manager.add_doc_to_db(docs[0])
+            os.remove(file_path)  # 임시 파일 삭제
+            return jsonify({"message": "PDF successfully processed", "vector_info": vector_details}), 200
+        else:
+            return jsonify({"error": "Failed to extract text from PDF"}), 500
+
+    except Exception as e:
+        return jsonify({"error": f"❌ Error processing PDF: {str(e)}"}), 500

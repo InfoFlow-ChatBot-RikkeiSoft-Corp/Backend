@@ -1,6 +1,17 @@
 from services.document_fetcher import DocumentFetcher
 from services.vector_db_manager import VectorDBManager
-vector_db_manager = VectorDBManager()
+
+from dotenv import load_dotenv
+import os
+# Get API keys from environment variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# 서비스 객체 생성
+document_fetcher = DocumentFetcher()
+vector_db_manager = VectorDBManager(
+    openai_api_key=OPENAI_API_KEY,
+    google_api_key=GOOGLE_API_KEY
+)
 
 # 모든 문서 메타데이터 가져오기
 all_docs_metadata = vector_db_manager.get_all_docs_metadata()

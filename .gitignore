@@ -8,3 +8,5 @@ services/__pycache__/
 initialize_faiss.py
 db_check.py
 services/chat.py
+services/vectorstore_local
+faiss_db
