@@ -1,11 +1,11 @@
 import os
 from langchain.prompts import PromptTemplate
 from langchain.schema import Document as LangChainDocument
-from vector_db_manager import VectorDBManager
-from document_fetcher import DocumentFetcher
-from answer_generator import AnswerGenerator
-from chat_generator import ChatGenerator
-from docs import Docs
+from services.vector_db_manager import VectorDBManager
+from services.document_fetcher import DocumentFetcher
+from services.answer_generator import AnswerGenerator
+from services.chat_generator import ChatGenerator
+from services.docs import Docs
 
 class RAGManager:
     def __init__(self, retriever_manager, answer_generator, document_fetcher, vector_db_manager):
