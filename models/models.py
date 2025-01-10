@@ -51,3 +51,18 @@ class ChatHistory(db.Model):
 
     def __repr__(self):
         return f"<ChatHistory {self.user_id} - {self.question[:20]}...>"
+    
+class LLMPrompt(db.Model):
+    __tablename__ = "llm_prompts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    prompt_name = db.Column(db.String(255), nullable=False, unique=True)
+    prompt_text = db.Column(db.Text, nullable=False)
+    created_by = db.Column(db.String(255), nullable=False)
+    updated_by = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=False)
+
+    def __repr__(self):
+        return f"<LLMPrompt {self.prompt_name}>"

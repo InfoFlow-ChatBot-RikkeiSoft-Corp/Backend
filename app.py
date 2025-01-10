@@ -3,6 +3,7 @@ from models.models import db
 from api.file_routes import file_routes
 from api.auth_routes import auth_routes
 from api.routes import chat_bp, weblink_bp
+from api.admin_routes import admin_bp
 from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
@@ -34,6 +35,7 @@ app.register_blueprint(file_routes, url_prefix='/api/files')
 app.register_blueprint(auth_routes, url_prefix='/api/auth')
 app.register_blueprint(chat_bp, url_prefix='/api/chat')
 app.register_blueprint(weblink_bp, url_prefix='/api/weblink')
+app.register_blueprint(admin_bp, url_prefix='/api/admin')
 
 # Access environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")

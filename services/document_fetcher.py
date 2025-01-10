@@ -7,12 +7,14 @@ import pytesseract
 from services.docs import Docs
 
 from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
-
+from services.docs import Docs
 
 class DocumentFetcher:
     def __init__(self):
         self.bs_kwargs = dict(
+            # 이거 수정하기 지금은 네이버 기사 기준
             parse_only=SoupStrainer("div", attrs={"class": ["newsct_article _article_body", "media_end_head_title"]})
         )
 
@@ -32,6 +34,7 @@ class DocumentFetcher:
 
         except Exception as e:
             raise RuntimeError(f"Error fetching document: {e}")
+
     def load_docx(self, file_path):
         """
         Load a .docx file and return a Docs object.
@@ -46,7 +49,6 @@ class DocumentFetcher:
 
             if not docs:
                 raise RuntimeError("No content found in the .docx file.")
-
             # Extract content from the first document
             content = docs[0].page_content
 

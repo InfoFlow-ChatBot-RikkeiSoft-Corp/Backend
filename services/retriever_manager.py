@@ -2,6 +2,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 class RetrieverManager:
+
     def __init__(self, vector_db_manager):
         """
         VectorDBManager 객체를 통해 벡터스토어를 관리.
@@ -13,6 +14,7 @@ class RetrieverManager:
         질문에 대한 컨텍스트를 검색.
         """
         try:
+
             # 벡터 DB에서 문서 검색
             docs = self.vector_db_manager.search(
                 query=question, k=k, search_type=search_type, similarity_threshold=similarity_threshold

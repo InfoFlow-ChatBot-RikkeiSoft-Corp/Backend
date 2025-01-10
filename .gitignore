@@ -6,3 +6,5 @@ Gemini_RAG.ipynb
 api/__pycache__/
 services/__pycache__/
 initialize_faiss.py
+db_check.py
+services/chat.py
