@@ -27,6 +27,7 @@ api_bp = Blueprint('api', __name__)
 chat_bp = Blueprint('chat', __name__)
 weblink_bp = Blueprint('weblink', __name__)
 pdf_bp = Blueprint('pdf', __name__)
+rag_bp = Blueprint('rag', __name__)
 
 # 클래스 인스턴스 생성
 document_fetcher = DocumentFetcher()
@@ -106,7 +107,7 @@ def weblink_build_vector_db():
         return f"❌ 오류 발생: {str(e)}", 500
 
 
-@api_bp.route('/api/rag/query', methods=['POST'])
+@rag_bp.route('/query', methods=['POST'])
 def rag_query():
     """Handle RAG queries and return the response."""
     try:
