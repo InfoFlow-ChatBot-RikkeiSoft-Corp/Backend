@@ -101,6 +101,31 @@ class VectorDBManager:
             # print(f"Vectorstore saved at {self.vectorstore_path}.")
         except Exception as e:
             raise RuntimeError(f"Error processing document: {e}")
+    def add_pdf_to_db(self, docs):
+        """여러 문서를 벡터 DB에 추가"""
+        try:
+            if not isinstance(docs, list):
+                docs = [docs]  # 리스트로 변환
+
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            documents = []
+
+            for doc in docs:
+                splits = text_splitter.split_text(doc.page_content)  # doc.page_content 사용
+                for split in splits:
+                    documents.append(
+                        Document(page_content=split, metadata=doc.metadata)  # page_content 사용
+                    )
+
+            # 벡터스토어에 문서 추가
+            self.vectorstore.add_documents(documents)
+            self.vectorstore.save_local(self.vectorstore_path)
+
+            return {"message": "✅ 문서가 성공적으로 벡터 DB에 추가되었습니다.", "document_count": len(documents)}
+
+        except Exception as e:
+            raise RuntimeError(f"Error processing document: {e}")
+
 
     def add_documents(self, documents):
         """Add multiple LangChain Document objects to the vector DB."""

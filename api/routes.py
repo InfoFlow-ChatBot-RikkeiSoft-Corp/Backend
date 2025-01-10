@@ -143,13 +143,12 @@ def pdf_build_vector_db():
     try:
         # 문서 가져오기
         docs = document_fetcher.load_pdf(file_path)
-        if docs:
-            # PDF 파일 벡터 DB에 추가
-            vector_details = vector_db_manager.add_doc_to_db(docs[0])
-            os.remove(file_path)  # 임시 파일 삭제
-            return jsonify({"message": "PDF successfully processed", "vector_info": vector_details}), 200
-        else:
-            return jsonify({"error": "Failed to extract text from PDF"}), 500
 
+        if docs:
+            vector_details = vector_db_manager.add_pdf_to_db(docs)
+                # vector_details_list.append(vector_details)
+            return jsonify({"message": "✅ PDF 문서가 성공적으로 처리되었습니다.", "vector_info": vector_details}), 200
+        else:
+            return jsonify({"error": "❌ PDF에서 텍스트를 추출할 수 없습니다."}), 500
     except Exception as e:
         return jsonify({"error": f"❌ Error processing PDF: {str(e)}"}), 500
