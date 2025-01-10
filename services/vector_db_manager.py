@@ -1,20 +1,24 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_openai import OpenAI, OpenAIEmbeddings
 import os
 
 class VectorDBManager:
-    def __init__(self, openai_api_key,vectorstore_path="./vectorstore_local"):
+    def __init__(self, openai_api_key, google_api_key, vectorstore_path="./vectorstore_local"):
         self.submitted_docs = [] 
         self.vectorstore = None
         self.embedding_model = None
         self.vectorstore_path = vectorstore_path
         
-        if openai_api_key:
+        # Initialize embedding model based on the available API key
+        if google_api_key:
+            os.environ["GOOGLE_API_KEY"] = google_api_key
             self.embedding_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-        else:
+        elif openai_api_key:
             self.embedding_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
+        else:
+            raise ValueError("Either google_api_key or openai_api_key must be provided.")
             
         # Load existing vectorstore if available
         if os.path.exists(self.vectorstore_path):

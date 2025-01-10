@@ -1,10 +1,24 @@
 from flask import Blueprint, request, jsonify, render_template
+from services.answer_generator import AnswerGenerator
 from services.document_fetcher import DocumentFetcher
 from services.vector_db_manager import VectorDBManager
 from services.retriever_manager import RetrieverManager
 from services.chat_generator import ChatGenerator
 from services.chat_service import ChatService
 from services.RAG_manager import RAGManager
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
+
+# Get API keys from environment variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# Ensure at least one API key is provided
+if not (GOOGLE_API_KEY or OPENAI_API_KEY):
+    raise ValueError("Neither GOOGLE_API_KEY nor OPENAI_API_KEY is set in the environment variables.")
 
 # Blueprint 생성
 api_bp = Blueprint('api', __name__)
@@ -13,10 +27,22 @@ weblink_bp = Blueprint('weblink', __name__)
 
 # 클래스 인스턴스 생성
 document_fetcher = DocumentFetcher()
-vector_db_manager = VectorDBManager()
-retriever_manager = RetrieverManager()
+vector_db_manager = VectorDBManager(
+    openai_api_key=OPENAI_API_KEY,
+    google_api_key=GOOGLE_API_KEY
+)
+answer_generator = AnswerGenerator(
+    model="models/gemini-1.5-flash", 
+    temperature=0.7               
+)
+retriever_manager = RetrieverManager(vector_db_manager=vector_db_manager)
 chat_generator = ChatGenerator(retriever_manager)
-rag_manager = RAGManager()
+rag_manager = RAGManager(
+    retriever_manager=retriever_manager,
+    answer_generator=answer_generator,
+    document_fetcher=document_fetcher,
+    vector_db_manager=vector_db_manager
+)
 
 # 질문 제출 및 응답 생성 API
 @chat_bp.route("/<string:user_id>", methods=["POST"])

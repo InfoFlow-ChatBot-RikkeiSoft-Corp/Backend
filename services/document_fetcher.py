@@ -4,7 +4,7 @@ from bs4 import SoupStrainer
 from langchain.schema import Document as LangChainDocument
 from pdf2image import convert_from_path
 import pytesseract
-from docs import Docs
+from services.docs import Docs
 
 from langchain_community.document_loaders import WebBaseLoader
 from bs4 import SoupStrainer
