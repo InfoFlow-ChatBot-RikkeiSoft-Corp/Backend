@@ -112,10 +112,15 @@ class VectorDBManager:
 
             for doc in docs:
                 splits = text_splitter.split_text(doc.page_content)  # doc.page_content 사용
-                for split in splits:
+                for i, split in enumerate(splits):
+                    unique_id = f"{doc.metadata['title']}_{i}"  # title을 기반으로 고유 ID 생성
                     documents.append(
-                        Document(page_content=split, metadata=doc.metadata)  # page_content 사용
+                        Document(page_content=split, metadata=doc.metadata, id=unique_id)
                     )
+                # for split in splits:
+                #     documents.append(
+                #         Document(page_content=split, metadata=doc.metadata)  # page_content 사용
+                #     )
 
             # 벡터스토어에 문서 추가
             self.vectorstore.add_documents(documents)
@@ -188,4 +193,30 @@ class VectorDBManager:
             print(f"❌ 오류 발생: {e}")
             return []
 
+    def delete_doc_by_title(self, title: str):
+        """title을 기반으로 문서를 삭제"""
+        try:
+            # 모든 문서 출력
+            print("📄 현재 저장된 문서 목록:")
+            for doc_id, doc in self.vectorstore.docstore._dict.items():
+                print(f"ID: {doc_id}, Title: {doc.metadata.get('title')}, Metadata: {doc.metadata}")
 
+            # docstore에서 title로 해당 ID 가져오기
+            doc_ids_to_delete = [
+                doc_id for doc_id, doc in self.vectorstore.docstore._dict.items()
+                if doc.metadata.get("title") == title
+            ]
+
+            if not doc_ids_to_delete:
+                return {"message": f"❌ '{title}' 제목의 문서를 찾을 수 없습니다."}
+
+            print(f"📝 삭제할 문서 ID 리스트: {doc_ids_to_delete}")
+
+            # 삭제 수행
+            self.vectorstore.delete(doc_ids_to_delete)
+            self.vectorstore.save_local(self.vectorstore_path)
+
+            return {"message": f"✅ '{title}' 제목의 문서가 성공적으로 삭제되었습니다."}
+
+        except Exception as e:
+            raise RuntimeError(f"Error deleting document by title: {e}")

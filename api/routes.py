@@ -153,3 +153,14 @@ def pdf_build_vector_db():
             return jsonify({"error": "❌ PDF에서 텍스트를 추출할 수 없습니다."}), 500
     except Exception as e:
         return jsonify({"error": f"❌ Error processing PDF: {str(e)}"}), 500
+# 특정 문서 삭제 - title 기준으로 삭제함
+@api_bp.route("/delete_doc", methods=["POST"])
+def delete_doc():
+    data = request.get_json()
+    title = data.get("title")
+
+    if not title:
+        return jsonify({"error": "❌ title을 입력해주세요!"}), 400
+
+    result = vector_db_manager.delete_doc_by_title(title)
+    return jsonify(result), 200
