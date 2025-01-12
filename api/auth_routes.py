@@ -3,6 +3,7 @@ from models.models import db, User, Log, Token, FileMetadata
 from flask import Blueprint, request, jsonify
 from models.models import db, User, Log
 import sqlalchemy as sa
+import uuid
 from datetime import datetime, timedelta
 import jwt
 from functools import wraps
@@ -91,7 +92,6 @@ def signup():
 
 @auth_routes.route('/login', methods=['POST'])
 def login():
-    """Authenticate a user, log their login details, and return a JWT token."""
     data = request.get_json()
     if not data or 'username' not in data or 'password' not in data:
         return jsonify({'error': 'Username and password are required'}), 400
@@ -103,18 +103,20 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({'error': 'Invalid credentials'}), 401
 
-    # Generate a new token
+    current_time = datetime.utcnow()
+
+    # Generate a unique JWT by adding 'jti' and 'iat'
     token = jwt.encode({
         'user_id': user.id,
-        'exp': current_time + timedelta(hours=1)
+        'exp': current_time + timedelta(hours=1),
+        'iat': current_time,
+        'jti': str(uuid.uuid4())   # unique ID for each token
     }, SECRET_KEY, algorithm='HS256')
 
     try:
-        # Save the new token in the database
         token_entry = Token(user_id=user.id, token=token, issued_at=current_time, revoked=False)
         db.session.add(token_entry)
 
-        # Log the login event
         log_entry = Log(user_id=user.id, description=f"User {username} logged in")
         db.session.add(log_entry)
         db.session.commit()
