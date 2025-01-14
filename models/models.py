@@ -50,7 +50,7 @@ class ChatHistory(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # 시간
 
     def __repr__(self):
-        return f"<ChatHistory {self.user_id} - {self.question[:20]}...>"
+        return f"<ChatHistory {self.conversation_id} - {self.question[:20]}...>"
     
 class LLMPrompt(db.Model):
     __tablename__ = "llm_prompts"
@@ -70,7 +70,6 @@ class LLMPrompt(db.Model):
 class Conversation(db.Model):
     __tablename__ = 'conversations'
     id = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(db.String(255), nullable=False, unique=True)
     user_id = db.Column(db.String(255), nullable=False)
     title = db.Column(db.String(255), nullable=True)  # 사용자 지정 제목
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

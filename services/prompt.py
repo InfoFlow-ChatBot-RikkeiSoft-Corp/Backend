@@ -5,7 +5,7 @@ def get_default_prompt_template():
     """기본 프롬프트 템플릿을 반환"""
     return PromptTemplate.from_template(
         """
-        {instruction}
+        {{instruction}}
 
         # Previous Chat History:
         {chat_history}
