@@ -44,23 +44,13 @@ class Log(db.Model):
 class ChatHistory(db.Model):
     __tablename__ = 'chat_history'
     id = db.Column(db.Integer, primary_key=True)  # 고유 ID
-    conversation_id = db.Column(db.String(255), nullable=False) # 대화 ID
+    user_id = db.Column(db.String(255), nullable=False)  # 사용자 ID
     question = db.Column(db.Text, nullable=False)  # 사용자 질문
     answer = db.Column(db.Text, nullable=False)  # AI 응답
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # 시간
-    
-    def to_dict(self):
-        """ChatHistory 객체를 JSON 직렬화 가능한 딕셔너리로 변환"""
-        return {
-            "id": self.id,
-            "conversation_id": self.conversation_id,
-            "question": self.question,
-            "answer": self.answer,
-            "timestamp": self.timestamp.isoformat()  # datetime 객체를 문자열로 변환
-        }
 
     def __repr__(self):
-        return f"timestamp: {self.timestamp}\nquestion: {self.question}\nanswer: {self.answer}...>"
+        return f"<ChatHistory {self.user_id} - {self.question[:20]}...>"
     
 class LLMPrompt(db.Model):
     __tablename__ = "llm_prompts"
@@ -76,11 +66,3 @@ class LLMPrompt(db.Model):
 
     def __repr__(self):
         return f"<LLMPrompt {self.prompt_name}>"
-    
-class Conversation(db.Model):
-    __tablename__ = 'conversations'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(255), nullable=False)
-    title = db.Column(db.String(255), nullable=True)  # 사용자 지정 제목
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)

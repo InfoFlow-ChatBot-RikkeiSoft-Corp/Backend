@@ -11,20 +11,8 @@ from services.RAG_manager import RAGManager
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from models.models import db, FileMetadata,User
-from services.document_fetcher import DocumentFetcher
-from services.vector_db_manager import VectorDBManager
 import sqlalchemy as sa
 from pytz import timezone
-from werkzeug.utils import secure_filename
-from dotenv import load_dotenv
-import os
-
-# Load environment variables
-load_dotenv()
-
-# Get API keys from environment variables
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 from dotenv import load_dotenv
 import os
@@ -37,11 +25,6 @@ MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 
 tz = timezone("Asia/Ho_Chi_Minh")  # Replace with your desired time zone
 current_time = datetime.now(tz)
-document_fetcher = DocumentFetcher()
-vector_db_manager = VectorDBManager(
-    openai_api_key=OPENAI_API_KEY,
-    google_api_key=GOOGLE_API_KEY
-)
 
 # Get API keys from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -116,17 +99,9 @@ def upload_file():
     if file_size > MAX_FILE_SIZE:
         return jsonify({"error": "File exceeds maximum size of 25 MB"}), 400
 
-    file_name = secure_filename(file.filename)
-    file_path = os.path.join("temp_uploads", file_name)
+    file_name = file.filename
     file_type = file_name.rsplit('.', 1)[1].lower()
-
-    # 중복된 파일 이름 확인
-    existing_file = FileMetadata.query.filter_by(name=file_name).first()
-    if existing_file:
-        return jsonify({"error": "❌ 해당 파일은 이미 업로드되어 있습니다."}), 400
-
-    # 중복 방지 파일 저장
-    file.save(file_path)
+    upload_date = current_time
 
     user = User.query.filter_by(username=username).first()
     if not user:
