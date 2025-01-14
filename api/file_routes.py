@@ -1,8 +1,20 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from models.models import db, FileMetadata,User
+from services.document_fetcher import DocumentFetcher
+from services.vector_db_manager import VectorDBManager
 import sqlalchemy as sa
 from pytz import timezone
+from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
+
+# Get API keys from environment variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 file_routes = Blueprint('file_routes', __name__)
 
@@ -11,6 +23,11 @@ MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 
 tz = timezone("Asia/Ho_Chi_Minh")  # Replace with your desired time zone
 current_time = datetime.now(tz)
+document_fetcher = DocumentFetcher()
+vector_db_manager = VectorDBManager(
+    openai_api_key=OPENAI_API_KEY,
+    google_api_key=GOOGLE_API_KEY
+)
 
 def is_allowed_file(file_name):
     return '.' in file_name and file_name.rsplit('.', 1)[1].lower() in ALLOWED_FILE_TYPES
@@ -46,22 +63,41 @@ def upload_file():
     if file_size > MAX_FILE_SIZE:
         return jsonify({"error": "File exceeds maximum size of 25 MB"}), 400
 
-    file_name = file.filename
+    file_name = secure_filename(file.filename)
+    file_path = os.path.join("temp_uploads", file_name)
     file_type = file_name.rsplit('.', 1)[1].lower()
-    upload_date = current_time
+
+    # 중복된 파일 이름 확인
+    existing_file = FileMetadata.query.filter_by(name=file_name).first()
+    if existing_file:
+        return jsonify({"error": "❌ 해당 파일은 이미 업로드되어 있습니다."}), 400
+
+    # 중복 방지 파일 저장
+    file.save(file_path)
 
     user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({"error": "User not found"}), 404
 
     try:
-        metadata = FileMetadata(name=file_name, size=file_size, type=file_type, upload_date=upload_date, user_id= user.id)
+        metadata = FileMetadata(name=file_name, size=file_size, type=file_type, upload_date=current_time, user_id=user.id)
         db.session.add(metadata)
         db.session.commit()
-        return jsonify({"message": "File uploaded successfully", "file_id": metadata.id}), 201
+
+        docs = document_fetcher.load_pdf(file_path)
+        existing_vectors = vector_db_manager.get_all_docs_metadata()
+
+        for doc in docs:
+            if any(meta['title'] == doc.metadata['title'] for meta in existing_vectors):
+                return jsonify({"error": f"❌ 문서 '{doc.metadata['title']}'가 이미 벡터 DB에 존재합니다."}), 400
+
+        vector_details = vector_db_manager.add_pdf_to_db(docs)
+        return jsonify({"message": "✅ PDF 문서가 성공적으로 처리되었습니다.", "vector_info": vector_details}), 200
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Database error: {str(e)}"}), 500
+
 
 @file_routes.route('/delete/<int:file_id>', methods=['DELETE'])
 def delete_file(file_id):

@@ -15,8 +15,7 @@ import os
 class DocumentFetcher:
     def __init__(self):
         self.bs_kwargs = dict(
-            # 이거 수정하기 지금은 네이버 기사 기준
-            parse_only=SoupStrainer("div", attrs={"class": ["newsct_article _article_body", "media_end_head_title"]})
+            parse_only=SoupStrainer(["h1", "p", "div"])
         )
 
     def fetch(self, title, url):
@@ -30,9 +29,15 @@ class DocumentFetcher:
             if not docs:
                 raise RuntimeError("No content found. Please check if the provided URL is correct.")
             
-            content = docs[0].page_content
-            print(title, url, content)
-            return Docs.from_web(title=title, url=url, content=content)
+            page_content = docs[0].page_content
+            # 제목 추출
+            if "<h1" in page_content:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(page_content, "html.parser")
+                title_tag = soup.find("h1")  # `<h1>` 태그에서 제목 가져오기
+                title = title_tag.get_text(strip=True) if title_tag else "No Title Found"
+
+            return Docs.from_web(title=title, url=url, content=page_content)
 
         except Exception as e:
             raise RuntimeError(f"Error fetching document: {e}")
