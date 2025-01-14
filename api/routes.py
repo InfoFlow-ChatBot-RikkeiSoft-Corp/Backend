@@ -85,27 +85,6 @@ def home():
         "Message": "app up and running successfully"
     })
 
-# 벡터 DB 구축 엔드포인트
-@weblink_bp.route("/upload", methods=["POST"])
-def weblink_build_vector_db():
-    title = request.form.get("title")
-    url = request.form.get("url")
-    if not title or not url:
-        return "❌ 제목과 링크를 모두 입력해주세요!", 400
-
-    try:
-        # 문서 가져오기
-        doc = document_fetcher.fetch(title, url)
-
-        # 벡터 DB에 추가
-        vector_details = vector_db_manager.add_doc_to_db(doc)
-        print(f"✅ '{title}' 벡터 DB에 성공적으로 저장되었습니다.")
-        print("벡터 정보:", vector_details)
-        
-        return jsonify({"title": title}), 200
-    except RuntimeError as e:
-        return f"❌ 오류 발생: {str(e)}", 500
-
 
 @rag_bp.route('/query', methods=['POST'])
 def rag_query():

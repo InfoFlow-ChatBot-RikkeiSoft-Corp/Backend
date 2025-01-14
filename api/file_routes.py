@@ -65,94 +65,106 @@ def is_admin(username):
     return result and result['role'] == 'admin'
 
 @file_routes.route('/upload', methods=['POST'])
-def upload_file():
+def upload_content():
     username = request.headers.get('username')
     if not username:
         return jsonify({"error": "Username not provided"}), 400
 
     if not is_admin(username):
-        return jsonify({"error": "Access denied. Only admins can upload files."}), 403
+        return jsonify({"error": "Access denied. Only admins can upload content."}), 403
 
-    file = request.files.get('file')
+    # 파일 업로드 요청 처리
+    if 'file' in request.files:
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
 
-    print("Headers:", request.headers)
-    print("Files:", request.files)
-    print("Form data:", request.form)
+        if not file:
+            return jsonify({"error": "No file provided"}), 400
 
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
+        if not is_allowed_file(file.filename):
+            return jsonify({"error": "File type not allowed"}), 400
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
+        file.seek(0, 2)  # Move to end of file
+        file_size = file.tell()
+        file.seek(0)
 
-    if not file:
-        return jsonify({"error": "No file provided"}), 400
+        if file_size > MAX_FILE_SIZE:
+            return jsonify({"error": "File exceeds maximum size of 25 MB"}), 400
 
-    if not is_allowed_file(file.filename):
-        return jsonify({"error": "File type not allowed"}), 400
+        file_name = file.filename
+        file_type = file_name.rsplit('.', 1)[1].lower()
+        upload_date = current_time
 
-    file.seek(0, 2)  # Move to end of file
-    file_size = file.tell()
-    file.seek(0)
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-    if file_size > MAX_FILE_SIZE:
-        return jsonify({"error": "File exceeds maximum size of 25 MB"}), 400
+        try:
+            # Save file temporarily
+            temp_path = os.path.join("temp_uploads", secure_filename(file_name))
+            file.save(temp_path)
 
-    file_name = file.filename
-    file_type = file_name.rsplit('.', 1)[1].lower()
-    upload_date = current_time
+            # Process the document and add to vector DB
+            docs = document_fetcher.load_docx(temp_path) if file_name.endswith("docx") else document_fetcher.load_pdf(temp_path)
 
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+            if docs:
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+                documents = []
 
-    try:
-        # Save file temporarily
-        temp_path = os.path.join("temp_uploads", file_name)
-        file.save(temp_path)
-
-        # Process document and add to vector DB
-        docs = document_fetcher.load_docx(temp_path) if file_name.endswith("docx") else document_fetcher.load_pdf(temp_path)
-
-        if docs:
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-            documents = []
-
-            for doc in docs:
-                splits = text_splitter.split_text(doc.page_content)
-                for i, split in enumerate(splits):
-                    documents.append(
-                        Document(
-                            page_content=split,
-                            metadata={
-                                "title": file_name,  # Title is set to the file name
-                                "source": temp_path
-                            }
+                for doc in docs:
+                    splits = text_splitter.split_text(doc.page_content)
+                    for i, split in enumerate(splits):
+                        documents.append(
+                            Document(
+                                page_content=split,
+                                metadata={
+                                    "title": file_name,
+                                    "source": temp_path
+                                }
+                            )
                         )
-                    )
 
-            vector_db_manager.vectorstore.add_documents(documents)
-            vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
+                vector_db_manager.vectorstore.add_documents(documents)
+                vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
 
-            # Save metadata to the database
-            metadata = FileMetadata(
-                name=file_name, size=file_size, type=file_type, upload_date=upload_date, user_id=user.id
-            )
-            db.session.add(metadata)
-            db.session.commit()
+                # Save metadata to the database
+                metadata = FileMetadata(
+                    name=file_name, size=file_size, type=file_type, upload_date=upload_date, user_id=user.id
+                )
+                db.session.add(metadata)
+                db.session.commit()
 
-            return jsonify({"message": "File uploaded successfully", "document_count": len(documents)}), 201
-        else:
-            return jsonify({"error": "Failed to process the document content"}), 500
+                return jsonify({"message": "File uploaded successfully", "document_count": len(documents)}), 201
+            else:
+                return jsonify({"error": "Failed to process the document content"}), 500
 
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-    finally:
-        # Cleanup temp file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+    # URL 업로드 요청 처리
+    elif 'title' in request.form and 'url' in request.form:
+        title = request.form.get("title")
+        url = request.form.get("url")
+        if not title or not url:
+            return jsonify({"error": "Title and URL are required"}), 400
+
+        try:
+            doc = document_fetcher.fetch(title, url)
+            vector_details = vector_db_manager.add_doc_to_db(doc)
+
+            return jsonify({
+                "message": f"URL '{title}' has been successfully added to the vector database.",
+                "vector_info": vector_details
+            }), 200
+
+        except RuntimeError as e:
+            return jsonify({"error": f"Failed to process URL: {str(e)}"}), 500
+
+    # 유효하지 않은 요청 처리
+    else:
+        return jsonify({"error": "Invalid request. Provide a file or title and URL."}), 400
 
 @file_routes.route('/list_files', methods=['GET'])
 def list_files():

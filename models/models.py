@@ -43,7 +43,9 @@ class Log(db.Model):
 
 class ChatHistory(db.Model):
     __tablename__ = 'chat_history'
+    
     id = db.Column(db.Integer, primary_key=True)  # 고유 ID
+    conversation_id = db.Column(db.String(255), nullable=False)
     user_id = db.Column(db.String(255), nullable=False)  # 사용자 ID
     question = db.Column(db.Text, nullable=False)  # 사용자 질문
     answer = db.Column(db.Text, nullable=False)  # AI 응답
