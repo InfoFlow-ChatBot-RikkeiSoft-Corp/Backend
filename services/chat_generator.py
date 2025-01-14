@@ -8,6 +8,7 @@ from models.models import LLMPrompt  # LLMPrompt 모델 가져오기
 from services.prompt import get_default_prompt_template
 from operator import itemgetter
 from services.chat_service import ChatService
+import json
 
 class ChatGenerator:
     def __init__(self, retriever):
@@ -84,7 +85,9 @@ class ChatGenerator:
             references = context.get("references", [])
 
             # 대화 히스토리 가져오기
-            chat_history = ChatService.get_recent_chat_history(conversation_id, 10)
+            chat_history_object = ChatService.get_recent_chat_history(conversation_id, 10)
+            # JSON 직렬화 가능한 리스트로 변환
+            chat_history = [history.to_dict() for history in chat_history_object]
             # 디버깅 로그: 대화 히스토리 출력
             # print(f"📝 대화 히스토리 (conversation_id={conversation_id}):{chat_history}")
             # for i, msg in enumerate(chat_history):
@@ -99,12 +102,11 @@ class ChatGenerator:
                 "question": question,
                 "context": context_text
             }
-            print(f"📊 `invoke()` Input Data: {input_data}")
+            print(f"📊 `invoke()` Input Data: {chat_history}")
 
-            response = self.rag_with_history.invoke(
-                input_data,
-                config={"configurable": {"session_id": conversation_id}},
-            )
+            # response = self.rag_with_history.invoke(input_data)
+            input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
+            response = self.llm.invoke(input_data_str)
             # response = self.rag_with_history.invoke(
             #     {
             #         "instruction": self.prompt_instruction,

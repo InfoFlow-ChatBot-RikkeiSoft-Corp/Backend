@@ -48,9 +48,19 @@ class ChatHistory(db.Model):
     question = db.Column(db.Text, nullable=False)  # 사용자 질문
     answer = db.Column(db.Text, nullable=False)  # AI 응답
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # 시간
+    
+    def to_dict(self):
+        """ChatHistory 객체를 JSON 직렬화 가능한 딕셔너리로 변환"""
+        return {
+            "id": self.id,
+            "conversation_id": self.conversation_id,
+            "question": self.question,
+            "answer": self.answer,
+            "timestamp": self.timestamp.isoformat()  # datetime 객체를 문자열로 변환
+        }
 
     def __repr__(self):
-        return f"<ChatHistory {self.conversation_id} - {self.question[:20]}...>"
+        return f"timestamp: {self.timestamp}\nquestion: {self.question}\nanswer: {self.answer}...>"
     
 class LLMPrompt(db.Model):
     __tablename__ = "llm_prompts"
