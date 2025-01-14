@@ -7,11 +7,11 @@ from langchain_openai import OpenAI, OpenAIEmbeddings
 import os
 
 class VectorDBManager:
-    def __init__(self, openai_api_key, google_api_key, vectorstore_path="./vectorstore_local"):
+    def __init__(self, openai_api_key, google_api_key):
         self.submitted_docs = [] 
         self.vectorstore = None
         self.embedding_model = None
-        self.vectorstore_path = vectorstore_path
+        self.vectorstore_path = "faiss_db"
         
         # Initialize embedding model based on the available API key
         if google_api_key:
@@ -22,16 +22,28 @@ class VectorDBManager:
         else:
             raise ValueError("Either google_api_key or openai_api_key must be provided.")
             
-        # Load existing vectorstore if available
+        # 벡터스토어 로드 (없으면 빈 DB 생성)
         if os.path.exists(self.vectorstore_path):
-            print(f"Loading existing vectorstore from {self.vectorstore_path}")
-            self.vectorstore = FAISS.load_local(
-                self.vectorstore_path,
-                self.embedding_model,
-                allow_dangerous_deserialization=True
-            )
+            try:
+                self.vectorstore = FAISS.load_local(
+                    self.vectorstore_path, 
+                    self.embedding_model,
+                    allow_dangerous_deserialization=True
+                    )
+                print("✅ 기존 FAISS 벡터스토어를 로드했습니다.")
+            except Exception as e:
+                print(f"❌ FAISS 벡터스토어 로드 실패: {e}. 새 벡터스토어 생성 중...")
+                self.initialize_empty_vectorstore()
         else:
-            print(f"No existing vectorstore found at {self.vectorstore_path}. Initializing a new one.")
+            print("🔄 새 빈 FAISS 벡터스토어를 생성합니다.")
+            self.initialize_empty_vectorstore()
+
+    def initialize_empty_vectorstore(self):
+        """빈 벡터스토어 초기화 (기본 문서 추가)"""
+        default_doc = Document(page_content="This is a default document.", metadata={"title": "Default"})
+        self.vectorstore = FAISS.from_documents([default_doc], embedding=self.embedding_model)
+        self.vectorstore.save_local(self.vectorstore_path)
+        print("✅ 기본 문서를 사용하여 벡터스토어를 초기화했습니다.")
 
     def generate_embedding(self, text):
         """generate text embedding"""
@@ -39,28 +51,11 @@ class VectorDBManager:
             raise ValueError("Embedding model is not initialized.")
         return self.embedding_model.embed_query(text)
 
-        # 벡터스토어 로드 (없으면 빈 DB 생성)
-        if os.path.exists(self.vectorstore_path):
-            try:
-                self.vectorstore = FAISS.load_local(
-                    self.vectorstore_path,
-                    self.embedding_model,
-                    allow_dangerous_deserialization=True  # 보안 설정 추가
-                )
-                print("✅ 기존 FAISS 벡터스토어를 로드했습니다.")
-            except Exception as e:
-                print(f"❌ FAISS 벡터스토어 로드 실패: {e}")
-                # 빈 벡터스토어 생성
-                self.vectorstore = FAISS(FAISS.build_index(), self.embedding_model)
-        else:
-            self.vectorstore = FAISS(FAISS.build_index(), self.embedding_model)
-            print("🔄 새 빈 FAISS 벡터스토어를 생성했습니다.")
-
     def add_doc_to_db(self, doc):
         try:
             print(f"Processing document: {doc.metadata.get('title', '제목 없음')}")
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-            splits = text_splitter.split_text(doc.page_content)
+            splits = text_splitter.split_text(doc.content)
 
             if not splits:
                 raise RuntimeError("Text splitting failed. No valid chunks generated.")
@@ -98,12 +93,39 @@ class VectorDBManager:
                     "url": documents[i].metadata["url"],  # 문서 URL 추가
                 })
 
+            print(vector_details)
+
 
             # Save the vectorstore locally
-            self.vectorstore.save_local(self.vectorstore_path)
-            print(f"Vectorstore saved at {self.vectorstore_path}.")
+            # self.vectorstore.save_local(self.vectorstore_path)
+            # print(f"Vectorstore saved at {self.vectorstore_path}.")
         except Exception as e:
             raise RuntimeError(f"Error processing document: {e}")
+    def add_pdf_to_db(self, docs):
+        """여러 문서를 벡터 DB에 추가"""
+        try:
+            if not isinstance(docs, list):
+                docs = [docs]  # 리스트로 변환
+
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            documents = []
+
+            for doc in docs:
+                splits = text_splitter.split_text(doc.page_content)  # doc.page_content 사용
+                for split in splits:
+                    documents.append(
+                        Document(page_content=split, metadata=doc.metadata)  # page_content 사용
+                    )
+
+            # 벡터스토어에 문서 추가
+            self.vectorstore.add_documents(documents)
+            self.vectorstore.save_local(self.vectorstore_path)
+
+            return {"message": "✅ 문서가 성공적으로 벡터 DB에 추가되었습니다.", "document_count": len(documents)}
+
+        except Exception as e:
+            raise RuntimeError(f"Error processing document: {e}")
+
 
     def add_documents(self, documents):
         """Add multiple LangChain Document objects to the vector DB."""
@@ -146,4 +168,24 @@ class VectorDBManager:
             metadata_list.append({"title": title, "url": url})
 
         return metadata_list
+    def get_top_k_vectors(self, k=5):
+        """상위 K개의 벡터를 조회하여 반환합니다."""
+        try:
+            if not self.vectorstore:
+                raise RuntimeError("FAISS 벡터스토어가 초기화되지 않았습니다.")
+
+            if len(self.vectorstore.docstore._dict) == 0:
+                print("❌ 벡터스토어에 저장된 문서가 없습니다.")
+                return []
+
+            # 상위 K개의 문서 정보를 가져오기
+            documents = list(self.vectorstore.docstore._dict.values())[:k]
+            top_k_info = [{"title": doc.metadata.get("title", "N/A"), "content_excerpt": doc.page_content[:300]} for doc in documents]
+
+            return top_k_info
+
+        except Exception as e:
+            print(f"❌ 오류 발생: {e}")
+            return []
+
 

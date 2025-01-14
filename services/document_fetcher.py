@@ -10,6 +10,7 @@ from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
 from services.docs import Docs
+import os
 
 class DocumentFetcher:
     def __init__(self):
@@ -30,6 +31,7 @@ class DocumentFetcher:
                 raise RuntimeError("No content found. Please check if the provided URL is correct.")
             
             content = docs[0].page_content
+            print(title, url, content)
             return Docs.from_web(title=title, url=url, content=content)
 
         except Exception as e:
@@ -89,14 +91,28 @@ class DocumentFetcher:
             if documents:
                 print("Extracted content using PDFPlumberLoader (first document):")
                 print(documents[0].page_content[:500])
-                return [LangChainDocument(page_content=doc.page_content, metadata={"source": file_path}) for doc in documents]
+
+                # 파일 이름에서 title 추출
+                file_name = os.path.basename(file_path)
+                title = os.path.splitext(file_name)[0]  # 확장자 제거하여 제목으로 사용
+
+                return [
+                    LangChainDocument(
+                        page_content=doc.page_content,
+                        metadata={"source": file_path, "title": title}  # title 추가
+                    )
+                    for doc in documents
+                ]
             else:
                 print("No content extracted using PDFPlumberLoader. Falling back to OCR...")
                 ocr_text = self.extract_text_with_ocr(file_path)
                 if ocr_text.strip():
-                    return [LangChainDocument(page_content=ocr_text, metadata={"source": file_path})]
+                    file_name = os.path.basename(file_path)
+                    title = os.path.splitext(file_name)[0]
+                    return [LangChainDocument(page_content=ocr_text, metadata={"source": file_path, "title": title})]
                 else:
                     return []
+
 
         except Exception as e:
             print(f"Error processing PDF file: {e}")
