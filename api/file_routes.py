@@ -122,9 +122,14 @@ def upload_file():
             for doc in docs:
                 splits = text_splitter.split_text(doc.page_content)
                 for i, split in enumerate(splits):
-                    unique_id = f"{file_name}_{uuid.uuid4().hex}"  # Generate unique ID
                     documents.append(
-                        Document(page_content=split, metadata={"title": file_name, "source": temp_path}, id=unique_id)
+                        Document(
+                            page_content=split,
+                            metadata={
+                                "title": file_name,  # Title is set to the file name
+                                "source": temp_path
+                            }
+                        )
                     )
 
             vector_db_manager.vectorstore.add_documents(documents)
@@ -149,28 +154,6 @@ def upload_file():
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-
-@file_routes.route('/delete/<int:file_id>', methods=['DELETE'])
-def delete_file(file_id):
-    username = request.headers.get('username')
-    if not username:
-        return jsonify({"error": "Username not provided"}), 400
-
-    if not is_admin(username):
-        return jsonify({"error": "Access denied. Only admins can delete files."}), 403
-
-    metadata = FileMetadata.query.get(file_id)
-    if not metadata:
-        return jsonify({"error": "File not found"}), 404
-
-    try:
-        db.session.delete(metadata)
-        db.session.commit()
-        return jsonify({"message": "File deleted successfully"}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
-
 @file_routes.route('/list_files', methods=['GET'])
 def list_files():
     username = request.headers.get('username')
@@ -179,7 +162,7 @@ def list_files():
 
     if not is_admin(username):
         return jsonify({"error": "Access denied. Only admins can view files."}), 403
-    
+
     print(f"Username received: {username}")
 
     sort_by = request.args.get('sort_by', 'name')
@@ -189,16 +172,17 @@ def list_files():
         return jsonify({"error": "Invalid sort parameter"}), 400
 
     try:
+        # 정렬 조건에 따라 파일 메타데이터를 쿼리
         query = FileMetadata.query.order_by(
             getattr(FileMetadata, sort_by).asc() if sort_order == 'asc' else getattr(FileMetadata, sort_by).desc()
         )
         print(f"Sorting by: {sort_by}, Order: {sort_order}")
         files = query.all()
 
+        # 파일 메타데이터를 제목(title) 중심으로 구성
         file_list = [
             {
-                "id": file.id,
-                "name": file.name,
+                "title": file.name,  # 제목을 name 필드로 반환
                 "size": file.size,
                 "type": file.type,
                 "upload_date": file.upload_date.isoformat()
@@ -208,6 +192,35 @@ def list_files():
 
         return jsonify({"files": file_list}), 200
     except Exception as e:
+        print(f"Error while listing files: {e}")
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
+@file_routes.route('/delete/<string:title>', methods=['DELETE'])
+def delete_file(title):
+    username = request.headers.get('username')
+    if not username:
+        return jsonify({"error": "Username not provided"}), 400
 
+    if not is_admin(username):
+        return jsonify({"error": "Access denied. Only admins can delete files."}), 403
+
+    # 제목을 기준으로 메타데이터 검색
+    metadata = FileMetadata.query.filter_by(name=title).first()
+    if not metadata:
+        return jsonify({"error": f"File with title '{title}' not found"}), 404
+
+    try:
+        # 데이터베이스에서 메타데이터 삭제
+        db.session.delete(metadata)
+        db.session.commit()
+
+        # 벡터 데이터 삭제 (옵션)
+        try:
+            vector_db_manager.vectorstore.delete_by_title(title)
+        except Exception as vector_error:
+            print(f"Warning: Failed to delete vector data for title '{title}'. Error: {vector_error}")
+
+        return jsonify({"message": f"File '{title}' deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Database error: {str(e)}"}), 500

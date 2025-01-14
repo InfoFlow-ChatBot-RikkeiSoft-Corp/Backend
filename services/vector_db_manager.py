@@ -5,7 +5,6 @@ from langchain_core.documents import Document
 from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_openai import OpenAI, OpenAIEmbeddings
 import os
-import uuid
 
 class VectorDBManager:
     def __init__(self, openai_api_key, google_api_key):
@@ -54,8 +53,6 @@ class VectorDBManager:
 
     def add_doc_to_db(self, doc):
         try:
-            if not isinstance(doc, list):
-                doc = [doc]
             print(f"Processing document: {doc.metadata.get('title', '제목 없음')}")
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
             splits = text_splitter.split_text(doc.content)
@@ -68,14 +65,6 @@ class VectorDBManager:
                 Document(page_content=split, metadata={"title": doc.title, "url": doc.url})
                 for split in splits
             ]
-
-            for doc in doc:
-                splits = text_splitter.split_text(doc.page_content)
-                for i, split in enumerate(splits):
-                    unique_id = f"{doc.metadata['title']}_{uuid.uuid4().hex}"  # Generate unique ID
-                    documents.append(
-                        Document(page_content=split, metadata=doc.metadata, id=unique_id)
-                    )
 
             # 기존 벡터스토어에 새 문서 추가
             self.vectorstore.add_documents(documents)
