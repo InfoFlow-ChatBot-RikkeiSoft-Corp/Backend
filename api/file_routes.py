@@ -183,15 +183,39 @@ def upload_content():
             return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
     # URL 업로드 요청 처리
-    elif 'title' in request.form and 'url' in request.form:
-        title = request.form.get("title")
-        url = request.form.get("url")
+    elif ('title' in request.form and 'url' in request.form) or request.is_json:
+        if request.is_json:
+            # JSON 요청 처리
+            data = request.get_json()
+            title = data.get("title")
+            url = data.get("url")
+        else:
+            # form 요청 처리
+            title = request.form.get("title")
+            url = request.form.get("url")
+
         if not title or not url:
             return jsonify({"error": "Title and URL are required"}), 400
 
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
         try:
+            # URL을 사용하여 문서 가져오기 및 벡터 DB 추가
             doc = document_fetcher.fetch(title, url)
             vector_details = vector_db_manager.add_doc_to_db(doc)
+
+            # 메타데이터 저장
+            metadata = FileMetadata(
+                name=title,
+                size=0,  # URL에서 파일 크기를 알 수 없으므로 기본값 설정
+                type="url",
+                upload_date=current_time,
+                user_id=user.id
+            )
+            db.session.add(metadata)
+            db.session.commit()
 
             return jsonify({
                 "message": f"URL '{title}' has been successfully added to the vector database.",
@@ -199,6 +223,7 @@ def upload_content():
             }), 200
 
         except RuntimeError as e:
+            db.session.rollback()
             return jsonify({"error": f"Failed to process URL: {str(e)}"}), 500
 
     # 유효하지 않은 요청 처리
