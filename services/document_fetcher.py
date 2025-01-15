@@ -42,24 +42,32 @@ class DocumentFetcher:
         except Exception as e:
             raise RuntimeError(f"Error fetching document: {e}")
 
+    def load_txt(self, file_path):
+        """
+        Load a .txt file and return a list of Docs objects.
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            return [Docs.from_file(file_path=file_path, content=content)]  # content가 포함된 Docs 반환
+        except Exception as e:
+            raise RuntimeError(f"Error loading .txt file: {e}")
+
+
     def load_docx(self, file_path):
         """
         Load a .docx file and return a Docs object.
-
-        :param file_path: Path to the .docx file
-        :return: Docs object containing title, file path, and content
         """
         try:
             # Use UnstructuredWordDocumentLoader to load .docx files
-            loader = PDFPlumberLoader(file_path)
+            loader = UnstructuredWordDocumentLoader(file_path)
             docs = loader.load()
 
             if not docs:
                 raise RuntimeError("No content found in the .docx file.")
-            # Extract content from the first document
-            content = docs[0].page_content
-
-            return Docs.from_file(file_path=file_path, content=content)
+            
+            # `page_content` 속성으로 변환
+            return [Docs.from_file(file_path=file_path, content=doc.page_content) for doc in docs]
 
         except Exception as e:
             raise RuntimeError(f"Error loading .docx file: {e}")

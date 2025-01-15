@@ -110,7 +110,7 @@ def upload_content():
             return jsonify({"error": "File exceeds maximum size of 25 MB"}), 400
 
         file_name = file.filename
-        file_type = file_name.rsplit('.', 1)[1].lower()
+        file_extension = file_name.rsplit('.', 1)[1].lower()
         upload_date = current_time
 
         user = User.query.filter_by(username=username).first()
@@ -122,32 +122,53 @@ def upload_content():
             temp_path = os.path.join("temp_uploads", secure_filename(file_name))
             file.save(temp_path)
 
-            # Process the document and add to vector DB
-            docs = document_fetcher.load_docx(temp_path) if file_name.endswith("docx") else document_fetcher.load_pdf(temp_path)
+            # Process the document based on file extension
+            if file_extension == 'docx':
+                docs = document_fetcher.load_docx(temp_path)
+            elif file_extension == 'txt':
+                docs = document_fetcher.load_txt(temp_path)
+            elif file_extension == 'pdf':
+                docs = document_fetcher.load_pdf(temp_path)
+            else:
+                return jsonify({"error": "Unsupported file format"}), 400
+
+            # 디버깅 로그 추가
+            print(f"Debug: Docs object type: {type(docs)}")
+            print(f"Debug: Docs object content: {docs}")
+            if isinstance(docs, list):
+                for i, doc in enumerate(docs):
+                    print(f"Doc {i}: {doc.content}")
 
             if docs:
+                if not isinstance(docs, list):  # 단일 객체라면 리스트로 변환
+                    docs = [docs]
+
                 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
                 documents = []
 
                 for doc in docs:
-                    splits = text_splitter.split_text(doc.page_content)
-                    for i, split in enumerate(splits):
-                        documents.append(
-                            Document(
-                                page_content=split,
-                                metadata={
-                                    "title": file_name,
-                                    "source": temp_path
-                                }
+                    if hasattr(doc, 'content'):  # `content` 속성 확인
+                        splits = text_splitter.split_text(doc.content)  # `page_content` 대신 `content` 사용
+                        for i, split in enumerate(splits):
+                            documents.append(
+                                Document(
+                                    page_content=split,
+                                    metadata={
+                                        "title": doc.title if hasattr(doc, 'title') else file_name,
+                                        "source": temp_path
+                                    }
+                                )
                             )
-                        )
+                    else:
+                        print(f"❌ Error: Docs object does not have 'content' attribute.")
+                        raise ValueError("Docs object does not have 'content' attribute.")
 
                 vector_db_manager.vectorstore.add_documents(documents)
                 vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
 
                 # Save metadata to the database
                 metadata = FileMetadata(
-                    name=file_name, size=file_size, type=file_type, upload_date=upload_date, user_id=user.id
+                    name=file_name, size=file_size, type=file_extension, upload_date=upload_date, user_id=user.id
                 )
                 db.session.add(metadata)
                 db.session.commit()
@@ -155,6 +176,7 @@ def upload_content():
                 return jsonify({"message": "File uploaded successfully", "document_count": len(documents)}), 201
             else:
                 return jsonify({"error": "Failed to process the document content"}), 500
+
 
         except Exception as e:
             db.session.rollback()
