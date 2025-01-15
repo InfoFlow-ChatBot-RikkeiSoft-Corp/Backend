@@ -30,8 +30,10 @@ class RetrieverManager:
                 title = metadata.get("title", "제목 없음")
                 url = metadata.get("url", "URL 없음")
 
+            # 본문 내용 추가
+            if content.strip():
                 context_list.append(f"{content}\n출처: {title} ({url})")
-                references.append({"title": title, "url": url})
+            references.append({"title": title, "url": url, "content": content})
 
             # 컨텍스트 본문 조합
             context = "\n\n".join(context_list)

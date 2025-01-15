@@ -79,7 +79,7 @@ class LLMPrompt(db.Model):
 
     def __repr__(self):
         return f"<LLMPrompt {self.prompt_name}>"
-    
+ 
 class Conversation(db.Model):
     __tablename__ = 'conversations'
     id = db.Column(db.Integer, primary_key=True)

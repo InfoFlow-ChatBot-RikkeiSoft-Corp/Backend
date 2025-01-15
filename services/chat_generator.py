@@ -129,7 +129,7 @@ class ChatGenerator:
                 answer += f"\n\n참고 자료:\n{reference_texts}"
 
             # AI 응답 메시지 추가
-            self.add_ai_message(user_id, answer)
+            self.add_ai_message(conversation_id, answer)
             return answer
 
         except Exception as e:

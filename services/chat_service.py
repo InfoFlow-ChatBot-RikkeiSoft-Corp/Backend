@@ -10,12 +10,19 @@ class ChatService:
         return new_conversation.id
 
     @staticmethod
-    def save_chat(conversation_id, question, answer):
+    def save_chat(conversation_id, user_id, question, answer):
         """사용자의 채팅 기록을 DB에 저장"""
-        new_chat = ChatHistory(conversation_id=conversation_id, question=question, answer=answer)
+        if not user_id:
+            raise ValueError("user_id는 필수입니다.")
+
+        new_chat = ChatHistory(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            question=question,
+            answer=answer
+        )
         db.session.add(new_chat)
         db.session.commit()
-
 
     @staticmethod
     def get_recent_chat_history(conversation_id, limit=10):
