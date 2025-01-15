@@ -18,3 +18,4 @@ flask_cors
 langchain_openai
 pytesseract
 pdf2image
+flask_restx
