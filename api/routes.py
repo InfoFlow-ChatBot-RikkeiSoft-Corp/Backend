@@ -28,50 +28,73 @@ pdf_ns = Namespace('pdf', description='PDF Vector DB operations')
 rag_ns = Namespace('rag', description='RAG Query operations')
 api_ns = Namespace('api', description='General API operations')
 
-# 요청 바디 모델 (JSON Body)
+# Request Body Models (JSON Body)
 ask_question_model = chat_ns.model('AskQuestion', {
-    'question': fields.String(required=True, description='질문 내용'),
+    'question': fields.String(required=True, description='Question content'),
 })
 new_conversation_model = chat_ns.model('NewConversation', {
-    'title': fields.String(required=False, description='새 채팅 제목', default="새 채팅"),
+    'title': fields.String(required=False, description='New conversation title', default="New Conversation"),
 })
-# 요청 바디 모델 정의
+# Request Body Model Definition
 weblink_model = weblink_ns.model('WeblinkUpload', {
-    'title': fields.String(required=True, description='문서 제목'),
-    'url': fields.String(required=True, description='웹 링크 URL'),
+    'title': fields.String(required=True, description='Document title'),
+    'url': fields.String(required=True, description='Weblink URL'),
 })
+# Conversation Model (Displayed in Swagger Documentation)
+conversation_model = chat_ns.model(
+    "Conversation",
+    {
+        "id": fields.Integer(description="Conversation ID"),
+        "user_id": fields.String(description="User ID"),
+        "title": fields.String(description="Conversation title"),
+        "created_at": fields.DateTime(description="Conversation creation date"),
+        "updated_at": fields.DateTime(description="Conversation update date"),
+    },
+)
 
-# 헤더 파라미터 설정
+# Chat History Model
+chat_history_model = chat_ns.model(
+    "ChatHistory",
+    {
+        "id": fields.Integer(description="History ID"),
+        "conversation_id": fields.String(description="Conversation ID"),
+        "question": fields.String(description="User question"),
+        "answer": fields.String(description="AI response"),
+        "timestamp": fields.DateTime(description="Creation time"),
+    },
+)
+
+# Header Parameter Configuration
 chat_headers_parser = reqparse.RequestParser()
-chat_headers_parser.add_argument('userId', location='headers', required=True, help='User ID 헤더 값')
-chat_headers_parser.add_argument('conversationId', location='headers', required=True, help='Conversation ID 헤더 값')
+chat_headers_parser.add_argument('userId', location='headers', required=True, help='User ID header value')
+chat_headers_parser.add_argument('conversationId', location='headers', required=True, help='Conversation ID header value')
 
 new_conversation_headers_parser = reqparse.RequestParser()
-new_conversation_headers_parser.add_argument('userId', location='headers', required=True, help='User ID 헤더 값')
+new_conversation_headers_parser.add_argument('userId', location='headers', required=True, help='User ID header value')
 
 # ======= Chat Namespace =======
 
 @chat_ns.route('/new')
 class NewConversation(Resource):
-    @chat_ns.expect(new_conversation_headers_parser, new_conversation_model)  # 요청 바디와 헤더 추가
+    @chat_ns.expect(new_conversation_headers_parser, new_conversation_model)  # Add request body and headers
     def post(self):
         """Start a new conversation."""
         user_id = request.headers.get("userId")
-        title = request.json.get("title", "새 채팅")
+        title = request.json.get("title", "New Conversation")
 
         if not user_id:
-            return {"error": "사용자 ID가 필요합니다."}, 400
+            return {"error": "User ID is required."}, 400
 
         try:
             new_conversation_id = ChatService.new_conversation(user_id=user_id, title=title)
             return {"conversation_id": new_conversation_id}, 201
         except Exception as e:
-            return {"error": f"❌ 오류 발생: {str(e)}"}, 500
+            return {"error": f"❌ Error occurred: {str(e)}"}, 500
 
 
 @chat_ns.route('/ask')
 class AskQuestion(Resource):
-    @chat_ns.expect(ask_question_model, chat_headers_parser)  # 요청 바디와 헤더 명세
+    @chat_ns.expect(ask_question_model, chat_headers_parser)  # Request body and header specifications
     def post(self):
         """Submit a question and get a response."""
         data = request.get_json()
@@ -79,17 +102,17 @@ class AskQuestion(Resource):
         user_id = request.headers.get("userId")
         conversation_id = request.headers.get("conversationId")
 
-        # 디버깅 로그 추가
+        # Add debugging logs
         print(f"📨 Received Headers: {request.headers}")
         print(f"📨 user_id: {user_id}, conversation_id: {conversation_id}, question: {question}")
 
-        # 필수 값 확인
+        # Check for required values
         if not user_id:
             return {"error": "Missing user_id in headers"}, 400
         if not conversation_id:
             return {"error": "Missing conversation_id in headers"}, 400
         if not question:
-            return {"error": "❌ 질문을 입력해주세요!"}, 400
+            return {"error": "❌ Please enter a question!"}, 400
 
         try:
             context = retriever_manager.retrieve_context(question)
@@ -99,44 +122,101 @@ class AskQuestion(Resource):
             ChatService.save_chat(conversation_id=conversation_id, user_id=user_id, question=question, answer=answer)
             return {"answer": answer}, 200
         except Exception as e:
-            return {"error": f"❌ 오류 발생: {str(e)}"}, 500
+            return {"error": f"❌ Error occurred: {str(e)}"}, 500
+
+# 1. Retrieve all conversations of a specific user
+@chat_ns.route("/")
+class UserConversations(Resource):
+    @chat_ns.doc(
+        description="Retrieve all conversation lists for a specific user.",
+        responses={
+            200: "Successfully returned the conversation list.",
+            400: "user_id not provided.",
+            500: "Server error occurred."
+        }
+    )
+    @chat_ns.param("userId", "User ID (included in headers)", _in="header", required=True)
+    def get(self):
+        """Return a list of user's conversations."""
+        user_id = request.headers.get("userId")
+        if not user_id:
+            return {"error": "user_id not provided."}, 400
+
+        try:
+            conversations = ChatService.get_user_conversations(user_id)
+            conversation_list = [
+                {
+                    "id": conv.id,
+                    "user_id": conv.user_id,
+                    "title": conv.title or f"Conversation {conv.id}",
+                    "created_at": conv.created_at.isoformat(),
+                    "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
+                }
+                for conv in conversations
+            ]
+            return {"conversations": conversation_list}, 200
+        except Exception as e:
+            return {"error": str(e)}, 500
 
 
-@chat_ns.route('/<string:user_id>')
-class ChatHistory(Resource):
-    def get(self, user_id):
-        """Get chat history for a user."""
-        chat_history = ChatService.get_chat_history(user_id)
-        if not chat_history:
-            return jsonify({"message": "🔍 채팅 기록이 없습니다."}), 404
+@chat_ns.route("/<int:conversation_id>/history")
+class ConversationChatHistory(Resource):
+    @chat_ns.doc(
+        description="Retrieve chat history for a specific conversation.",
+        params={"limit": "Number of chat history records to retrieve (default: 20)"}
+    )
+    @chat_ns.param("userId", "User ID (included in headers)", _in="header", required=True)
+    @chat_ns.response(200, "Success", [chat_history_model])
+    @chat_ns.response(403, "Forbidden")
+    @chat_ns.response(500, "Server error")
+    def get(self, conversation_id):
+        """Return chat history based on conversation ID."""
+        user_id = request.headers.get("userId")
+        if not user_id:
+            return {"error": "user_id not provided."}, 400
+        
+        limit = request.args.get("limit", default=20, type=int)
+        try:
+            # 1. Check if the conversation belongs to the user_id
+            conversation = ChatService.get_conversation_by_id(conversation_id)
+            if not conversation or conversation.user_id != user_id:
+                return {"error": "Unauthorized. You cannot access another user's chat history."}, 403
 
-        return jsonify(
-            [
-                {"question": chat.question, "answer": chat.answer, "timestamp": chat.timestamp.isoformat()}
+            # 2. Retrieve chat history
+            chat_history = ChatService.get_conversation_chat_history(str(conversation_id), limit)
+            chat_history_list = [
+                {
+                    "id": chat.id,
+                    "conversation_id": chat.conversation_id,
+                    "question": chat.question,
+                    "answer": chat.answer,
+                    "timestamp": chat.timestamp.isoformat(),
+                }
                 for chat in chat_history
             ]
-        ), 200
+            return {"chat_history": chat_history_list}, 200
+        except Exception as e:
+            return {"error": str(e)}, 500
 
-
-# ======= Weblink Namespace (example) =======
+# ======= Weblink Namespace =======
 @weblink_ns.route('/upload')
 class WeblinkUpload(Resource):
-    @weblink_ns.expect(weblink_model)  # 요청 바디와 헤더 추가
+    @weblink_ns.expect(weblink_model)  # Add request body and headers
     def post(self):
         """Upload a weblink document."""
-        data = request.get_json()  # JSON 데이터 가져오기
+        data = request.get_json()  # Retrieve JSON data
         title = data.get("title")
         url = data.get("url")
 
         if not title or not url:
-            return {"error": "❌ 제목과 링크를 모두 입력해주세요!"}, 400
+            return {"error": "❌ Please enter both the title and the link!"}, 400
 
         try:
             doc = document_fetcher.fetch(title, url)
             vector_details = vector_db_manager.add_doc_to_db(doc)
             return {"title": title, "vector_details": vector_details}, 200
         except Exception as e:
-            return {"error": f"❌ 오류 발생: {str(e)}"}, 500
+            return {"error": f"❌ Error occurred: {str(e)}"}, 500
 
 
 # ======= PDF Namespace =======

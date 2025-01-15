@@ -23,6 +23,27 @@ class ChatService:
         )
         db.session.add(new_chat)
         db.session.commit()
+    
+    @staticmethod
+    def get_conversation(user_id):
+        """사용자의 conversation 조회"""
+        if not user_id:
+            raise ValueError("user_id는 필수입니다.")
+    
+    @staticmethod
+    def get_user_conversations(user_id: str):
+        """특정 사용자에 대한 모든 대화(conversation) 가져오기"""
+        conversations = Conversation.query.filter_by(user_id=user_id).order_by(Conversation.created_at.desc()).all()
+        return conversations
+    @staticmethod
+    def get_conversation_by_id(conversation_id):
+        """대화 ID를 통해 특정 대화를 반환합니다."""
+        return Conversation.query.filter_by(id=conversation_id).first()
+    @staticmethod
+    def get_conversation_chat_history(conversation_id: int, limit: int = 20):
+        """특정 conversation의 채팅 기록 가져오기"""
+        chat_history = ChatHistory.query.filter_by(conversation_id=conversation_id).order_by(ChatHistory.timestamp.asc()).limit(limit).all()
+        return chat_history
 
     @staticmethod
     def get_recent_chat_history(conversation_id, limit=10):
