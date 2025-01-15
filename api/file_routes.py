@@ -209,6 +209,9 @@ def list_files():
 
 @file_routes.route('/delete/<string:title>', methods=['DELETE'])
 def delete_file(title):
+    """
+    제목을 기준으로 메타데이터와 벡터 데이터를 동기화하여 삭제.
+    """
     username = request.headers.get('username')
     if not username:
         return jsonify({"error": "Username not provided"}), 400
@@ -226,13 +229,25 @@ def delete_file(title):
         db.session.delete(metadata)
         db.session.commit()
 
-        # 벡터 데이터 삭제 (옵션)
+        # 벡터 데이터 삭제
         try:
-            vector_db_manager.vectorstore.delete_by_title(title)
+            result = vector_db_manager.delete_doc_by_title(title)  # vector_db_manager의 메서드 호출
+            if result.get("message", "").startswith("✅"):
+                return jsonify({
+                    "message": f"File '{title}' and its vector data deleted successfully"
+                }), 200
+            else:
+                return jsonify({
+                    "message": f"Metadata deleted, but vector data could not be deleted. Reason: {result.get('message')}"
+                }), 200
+
         except Exception as vector_error:
             print(f"Warning: Failed to delete vector data for title '{title}'. Error: {vector_error}")
+            return jsonify({
+                "message": "Metadata deleted, but vector data deletion failed.",
+                "error": str(vector_error)
+            }), 200
 
-        return jsonify({"message": f"File '{title}' deleted successfully"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Database error: {str(e)}"}), 500
