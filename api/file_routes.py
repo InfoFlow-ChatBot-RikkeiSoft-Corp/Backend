@@ -11,8 +11,20 @@ from services.RAG_manager import RAGManager
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from models.models import db, FileMetadata,User
+from services.document_fetcher import DocumentFetcher
+from services.vector_db_manager import VectorDBManager
 import sqlalchemy as sa
 from pytz import timezone
+from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
+
+# Get API keys from environment variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 from dotenv import load_dotenv
 import os
@@ -25,6 +37,11 @@ MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 
 tz = timezone("Asia/Ho_Chi_Minh")  # Replace with your desired time zone
 current_time = datetime.now(tz)
+document_fetcher = DocumentFetcher()
+vector_db_manager = VectorDBManager(
+    openai_api_key=OPENAI_API_KEY,
+    google_api_key=GOOGLE_API_KEY
+)
 
 # Get API keys from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")

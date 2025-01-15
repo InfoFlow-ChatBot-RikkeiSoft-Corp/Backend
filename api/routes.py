@@ -47,25 +47,48 @@ rag_manager = RAGManager(
     vector_db_manager=vector_db_manager
 )
 
+@chat_bp.route("/new", methods=["POST"])
+def start_conversation():
+    user_id = request.headers.get("userId")  # 사용자 ID
+    title = request.json.get("title", "새 채팅")  # 선택적 제목
+
+    if not user_id:
+        return jsonify({"error": "사용자 ID가 필요합니다."}), 400
+    try:
+        new_conversation_id = ChatService.new_conversation(user_id=user_id, title=title)
+        return jsonify({"conversation_id": new_conversation_id}), 201  # 새 conversation ID 반환
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return jsonify({"error": f"❌ 오류 발생: {str(e)}"}), 500
+
+
 # 질문 제출 및 응답 생성 API
-@chat_bp.route("/<string:user_id>", methods=["POST"])
-def ask(user_id):
+@chat_bp.route("/ask", methods=["POST"])
+def ask():
+    # 헤더에 user_id, conversation_id 받기
     data = request.get_json()
     question = data.get("question")
-    print(question)
+    user_id = request.headers.get("userId")
+    conversation_id = request.headers.get("conversationId")
+
+    print(f"📨 Received Headers: {request.headers}")
+    print(f"📨 user_id: {user_id}, conversation_id: {conversation_id}")
 
     if not question:
         return jsonify({"error": "❌ 질문을 입력해주세요!"}), 400
 
     try:
-        chat_generator = ChatGenerator(retriever_manager)
-        context = retriever_manager.retrieve_context(question, 3)
-        answer = chat_generator.generate_answer(user_id, question, context)
-        ChatService.save_chat(user_id=user_id, question=question, answer=answer)
+        context = retriever_manager.retrieve_context(question)
+        retriever = vector_db_manager.get_retriever(search_type="similarity", k=5, similarity_threshold=0.7)
+        chat_generator = ChatGenerator(retriever=retriever)
+        print(conversation_id)
+        answer = chat_generator.generate_answer(conversation_id, question, context)
+        ChatService.save_chat(conversation_id=conversation_id, question=question, answer=answer)
         return jsonify({"answer": answer}), 200
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         return jsonify({"error": f"❌ 오류 발생: {str(e)}"}), 500
+    
 # 채팅 기록 조회 엔드포인트
 @chat_bp.route("/<string:user_id>", methods=["GET"])
 def get_chat_history(user_id):
@@ -122,6 +145,54 @@ def pdf_build_vector_db():
 
     try:
         # 문서 가져오기
+        doc = document_fetcher.fetch(title, url)
+
+        # 벡터 DB에 추가
+        vector_details = vector_db_manager.add_doc_to_db(doc)
+        print(f"✅ '{title}' 벡터 DB에 성공적으로 저장되었습니다.")
+        print("벡터 정보:", vector_details)
+        
+        return jsonify({"title": title}), 200
+    except RuntimeError as e:
+        return f"❌ 오류 발생: {str(e)}", 500
+
+
+@rag_bp.route('/query', methods=['POST'])
+def rag_query():
+    """Handle RAG queries and return the response."""
+    try:
+        data = request.get_json()
+        query = data.get("query")
+        retriever_type = data.get("retriever_type", "similarity")
+        k = data.get("k", 5)
+        similarity_threshold = data.get("similarity_threshold", 0.7)
+
+        if not query:
+            return jsonify({"error": "Query is required"}), 400
+
+        # Use RAGManager to process the query
+        answer = rag_manager.query(query, retriever_type, k, similarity_threshold)
+        return jsonify({"query": query, "answer": answer}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+# 벡터 DB 구축 엔드포인트
+@pdf_bp.route("/upload", methods=["POST"])
+def pdf_build_vector_db():
+    if "file" not in request.files:
+        return jsonify({"error": "❌ PDF 파일을 업로드해주세요!"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "❌ 파일 이름이 비어 있습니다."}), 400
+
+    file_path = os.path.join("temp_uploads", secure_filename(file.filename))
+    file.save(file_path)
+
+    try:
+        # 문서 가져오기
         docs = document_fetcher.load_pdf(file_path)
 
         if docs:
@@ -132,3 +203,14 @@ def pdf_build_vector_db():
             return jsonify({"error": "❌ PDF에서 텍스트를 추출할 수 없습니다."}), 500
     except Exception as e:
         return jsonify({"error": f"❌ Error processing PDF: {str(e)}"}), 500
+# 특정 문서 삭제 - title 기준으로 삭제함
+@api_bp.route("/delete_doc", methods=["POST"])
+def delete_doc():
+    data = request.get_json()
+    title = data.get("title")
+
+    if not title:
+        return jsonify({"error": "❌ title을 입력해주세요!"}), 400
+
+    result = vector_db_manager.delete_doc_by_title(title)
+    return jsonify(result), 200
