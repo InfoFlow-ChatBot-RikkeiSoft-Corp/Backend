@@ -1,7 +1,5 @@
 from models.models import ChatHistory, Conversation, db
 
-## 사용 시 기존 로직에 통합 필요
-
 class ChatService:
     @staticmethod
     def new_conversation(user_id, title):
@@ -17,6 +15,7 @@ class ChatService:
         new_chat = ChatHistory(conversation_id=conversation_id, question=question, answer=answer)
         db.session.add(new_chat)
         db.session.commit()
+
 
     @staticmethod
     def get_recent_chat_history(conversation_id, limit=10):

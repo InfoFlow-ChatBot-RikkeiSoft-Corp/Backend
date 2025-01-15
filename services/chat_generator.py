@@ -1,5 +1,5 @@
 from flask import current_app
-from langchain.schema import AIMessage, HumanMessage
+from langchain.schema import AIMessage, HumanMessage, BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import GoogleGenerativeAI
 from langchain_community.chat_message_histories import ChatMessageHistory
@@ -76,8 +76,8 @@ class ChatGenerator:
         chat_history.add_message(AIMessage(content=content))
         print(f"✅ AI 응답 메시지 저장됨: {content}")  # 디버깅 로그
 
-    def generate_answer(self, conversation_id, question, context):
 
+    def generate_answer(self, conversation_id, question, context):
         """질문과 문맥을 기반으로 LLM을 호출하여 답변 생성"""
         try:
             # context 구조에서 본문과 참조 정보를 분리
@@ -128,6 +128,8 @@ class ChatGenerator:
                 reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
                 answer += f"\n\n참고 자료:\n{reference_texts}"
 
+            # AI 응답 메시지 추가
+            self.add_ai_message(user_id, answer)
             return answer
 
         except Exception as e:

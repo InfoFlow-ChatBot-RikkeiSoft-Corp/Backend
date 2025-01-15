@@ -46,6 +46,7 @@ rag_manager = RAGManager(
     document_fetcher=document_fetcher,
     vector_db_manager=vector_db_manager
 )
+
 @chat_bp.route("/new", methods=["POST"])
 def start_conversation():
     user_id = request.headers.get("userId")  # 사용자 ID
@@ -107,13 +108,40 @@ def home():
         "Message": "app up and running successfully"
     })
 
+
+@rag_bp.route('/query', methods=['POST'])
+def rag_query():
+    """Handle RAG queries and return the response."""
+    try:
+        data = request.get_json()
+        query = data.get("query")
+        retriever_type = data.get("retriever_type", "similarity")
+        k = data.get("k", 5)
+        similarity_threshold = data.get("similarity_threshold", 0.7)
+
+        if not query:
+            return jsonify({"error": "Query is required"}), 400
+
+        # Use RAGManager to process the query
+        answer = rag_manager.query(query, retriever_type, k, similarity_threshold)
+        return jsonify({"query": query, "answer": answer}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 # 벡터 DB 구축 엔드포인트
-@weblink_bp.route("/upload", methods=["POST"])
-def weblink_build_vector_db():
-    title = request.form.get("title")
-    url = request.form.get("url")
-    if not title or not url:
-        return "❌ 제목과 링크를 모두 입력해주세요!", 400
+@pdf_bp.route("/upload", methods=["POST"])
+def pdf_build_vector_db():
+    if "file" not in request.files:
+        return jsonify({"error": "❌ PDF 파일을 업로드해주세요!"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "❌ 파일 이름이 비어 있습니다."}), 400
+
+    file_path = os.path.join("temp_uploads", secure_filename(file.filename))
+    file.save(file_path)
 
     try:
         # 문서 가져오기

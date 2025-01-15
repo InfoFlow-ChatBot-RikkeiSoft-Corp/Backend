@@ -16,6 +16,7 @@ class DocumentFetcher:
     def __init__(self):
         self.bs_kwargs = dict(
             parse_only=SoupStrainer(["h1", "p", "div"])
+
         )
 
     def fetch(self, title, url):
@@ -36,7 +37,6 @@ class DocumentFetcher:
                 soup = BeautifulSoup(page_content, "html.parser")
                 title_tag = soup.find("h1")  # `<h1>` 태그에서 제목 가져오기
                 title = title_tag.get_text(strip=True) if title_tag else "No Title Found"
-
             return Docs.from_web(title=title, url=url, content=page_content)
 
         except Exception as e:
