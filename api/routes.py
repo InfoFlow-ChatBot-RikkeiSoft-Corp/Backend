@@ -65,29 +65,39 @@ def start_conversation():
 # 질문 제출 및 응답 생성 API
 @chat_bp.route("/ask", methods=["POST"])
 def ask():
-    # 헤더에 user_id, conversation_id 받기
+    # 요청 데이터 및 헤더 읽기
     data = request.get_json()
     question = data.get("question")
     user_id = request.headers.get("userId")
     conversation_id = request.headers.get("conversationId")
 
+    # 디버깅 로그 추가
     print(f"📨 Received Headers: {request.headers}")
-    print(f"📨 user_id: {user_id}, conversation_id: {conversation_id}")
+    print(f"📨 user_id: {user_id}, conversation_id: {conversation_id}, question: {question}")
 
+    # 필수 값 확인
+    if not user_id:
+        return jsonify({"error": "Missing user_id in headers"}), 400
+    if not conversation_id:
+        return jsonify({"error": "Missing conversation_id in headers"}), 400
     if not question:
         return jsonify({"error": "❌ 질문을 입력해주세요!"}), 400
 
     try:
+        # 컨텍스트 생성 및 응답 생성
         context = retriever_manager.retrieve_context(question)
         retriever = vector_db_manager.get_retriever(search_type="similarity", k=5, similarity_threshold=0.7)
         chat_generator = ChatGenerator(retriever=retriever)
-        print(conversation_id)
         answer = chat_generator.generate_answer(conversation_id, question, context)
-        ChatService.save_chat(conversation_id=conversation_id, question=question, answer=answer)
+
+        # 채팅 기록 저장
+        ChatService.save_chat(conversation_id=conversation_id, user_id=user_id, question=question, answer=answer)
+
         return jsonify({"answer": answer}), 200
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         return jsonify({"error": f"❌ 오류 발생: {str(e)}"}), 500
+
     
 # 채팅 기록 조회 엔드포인트
 @chat_bp.route("/<string:user_id>", methods=["GET"])
@@ -107,54 +117,6 @@ def home():
     return jsonify({
         "Message": "app up and running successfully"
     })
-
-
-@rag_bp.route('/query', methods=['POST'])
-def rag_query():
-    """Handle RAG queries and return the response."""
-    try:
-        data = request.get_json()
-        query = data.get("query")
-        retriever_type = data.get("retriever_type", "similarity")
-        k = data.get("k", 5)
-        similarity_threshold = data.get("similarity_threshold", 0.7)
-
-        if not query:
-            return jsonify({"error": "Query is required"}), 400
-
-        # Use RAGManager to process the query
-        answer = rag_manager.query(query, retriever_type, k, similarity_threshold)
-        return jsonify({"query": query, "answer": answer}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-# 벡터 DB 구축 엔드포인트
-@pdf_bp.route("/upload", methods=["POST"])
-def pdf_build_vector_db():
-    if "file" not in request.files:
-        return jsonify({"error": "❌ PDF 파일을 업로드해주세요!"}), 400
-
-    file = request.files["file"]
-
-    if file.filename == "":
-        return jsonify({"error": "❌ 파일 이름이 비어 있습니다."}), 400
-
-    file_path = os.path.join("temp_uploads", secure_filename(file.filename))
-    file.save(file_path)
-
-    try:
-        # 문서 가져오기
-        doc = document_fetcher.fetch(title, url)
-
-        # 벡터 DB에 추가
-        vector_details = vector_db_manager.add_doc_to_db(doc)
-        print(f"✅ '{title}' 벡터 DB에 성공적으로 저장되었습니다.")
-        print("벡터 정보:", vector_details)
-        
-        return jsonify({"title": title}), 200
-    except RuntimeError as e:
-        return f"❌ 오류 발생: {str(e)}", 500
 
 
 @rag_bp.route('/query', methods=['POST'])

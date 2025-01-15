@@ -57,9 +57,11 @@ class RAGManager:
 
         # Convert retrieved context into LangChainDocument objects
         documents = [
-            LangChainDocument(page_content=ref.get("context", ""), metadata=ref)
+            LangChainDocument(
+                page_content=ref.get("content", ""),  # 본문 내용 추가
+                metadata={"title": ref["title"], "url": ref["url"]}
+            )
             for ref in context.get("references", [])
         ]
 
-        # Pass the properly formatted documents to generate_answer
         return self.answer_generator.generate_answer(question=query, documents=documents)
