@@ -224,31 +224,32 @@ def list_files():
         print(f"Error while listing files: {e}")
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-@file_routes.route('/delete/<string:title>', methods=['DELETE'])
+@file_routes.route('/delete/<path:title>', methods=['DELETE'])
 def delete_file(title):
     """
     제목을 기준으로 메타데이터와 벡터 데이터를 동기화하여 삭제.
     """
+    print(f"Received DELETE request for title: {title}")
     username = request.headers.get('username')
     if not username:
         return jsonify({"error": "Username not provided"}), 400
-
+ 
     if not is_admin(username):
         return jsonify({"error": "Access denied. Only admins can delete files."}), 403
-
+ 
     # 제목을 기준으로 메타데이터 검색
     metadata = FileMetadata.query.filter_by(name=title).first()
     if not metadata:
         return jsonify({"error": f"File with title '{title}' not found"}), 404
-
+ 
     try:
         # 데이터베이스에서 메타데이터 삭제
         db.session.delete(metadata)
         db.session.commit()
-
+ 
         # 벡터 데이터 삭제
         try:
-            result = vector_db_manager.delete_doc_by_title(title)  # vector_db_manager의 메서드 호출
+            result = vector_db_manager.delete_doc_by_title(title)
             if result.get("message", "").startswith("✅"):
                 return jsonify({
                     "message": f"File '{title}' and its vector data deleted successfully"
@@ -257,14 +258,13 @@ def delete_file(title):
                 return jsonify({
                     "message": f"Metadata deleted, but vector data could not be deleted. Reason: {result.get('message')}"
                 }), 200
-
         except Exception as vector_error:
             print(f"Warning: Failed to delete vector data for title '{title}'. Error: {vector_error}")
             return jsonify({
                 "message": "Metadata deleted, but vector data deletion failed.",
                 "error": str(vector_error)
             }), 200
-
+ 
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Database error: {str(e)}"}), 500
