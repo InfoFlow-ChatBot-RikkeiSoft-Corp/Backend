@@ -107,7 +107,7 @@ class DocumentFetcher:
 
                 # 파일 이름에서 title 추출
                 file_name = os.path.basename(file_path)
-                title = os.path.splitext(file_name)[0]  # 확장자 제거하여 제목으로 사용
+                title = os.path.splitext(file_name)[0]
 
                 return [
                     LangChainDocument(
@@ -124,9 +124,16 @@ class DocumentFetcher:
                     title = os.path.splitext(file_name)[0]
                     return [LangChainDocument(page_content=ocr_text, metadata={"source": file_path, "title": title})]
                 else:
+                    print("No text could be extracted from PDF.")
                     return []
 
-
+        except FileNotFoundError:
+            print(f"Error: File not found at path {file_path}")
+            return []
+        except PermissionError:
+            print(f"Error: Permission denied for file at path {file_path}")
+            return []
         except Exception as e:
+            # General exception handling
             print(f"Error processing PDF file: {e}")
             return []

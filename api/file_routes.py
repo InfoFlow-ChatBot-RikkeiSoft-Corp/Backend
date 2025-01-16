@@ -132,12 +132,18 @@ def upload_content():
             else:
                 return jsonify({"error": "Unsupported file format"}), 400
 
-            # 디버깅 로그 추가
+            # 디버깅: 로드된 문서의 타입과 내용 확인
             print(f"Debug: Docs object type: {type(docs)}")
-            print(f"Debug: Docs object content: {docs}")
             if isinstance(docs, list):
+                print(f"Debug: Number of documents loaded: {len(docs)}")
                 for i, doc in enumerate(docs):
-                    print(f"Doc {i}: {doc.content}")
+                    print(f"Doc {i} metadata: {doc.metadata}")  # 메타데이터 출력
+                    if hasattr(doc, 'page_content'):
+                        print(f"Doc {i} page content (first 500 chars): {doc.page_content[:500]}")  # 첫 500자 출력
+                    else:
+                        print(f"Doc {i} has no 'page_content' attribute")
+            else:
+                print("Docs is not a list. Value:", docs)
 
             if docs:
                 if not isinstance(docs, list):  # 단일 객체라면 리스트로 변환
@@ -147,21 +153,22 @@ def upload_content():
                 documents = []
 
                 for doc in docs:
-                    if hasattr(doc, 'content'):  # `content` 속성 확인
-                        splits = text_splitter.split_text(doc.content)  # `page_content` 대신 `content` 사용
-                        for i, split in enumerate(splits):
+                    if hasattr(doc, 'page_content'):  # `page_content` 속성 확인
+                        splits = text_splitter.split_text(doc.page_content)  # `page_content` 사용
+                        for split in splits:
                             documents.append(
                                 Document(
                                     page_content=split,
                                     metadata={
-                                        "title": doc.title if hasattr(doc, 'title') else file_name,
-                                        "source": temp_path
+                                        "title": doc.metadata.get("title", file_name),
+                                        "source": doc.metadata.get("source", temp_path),
                                     }
                                 )
                             )
                     else:
-                        print(f"❌ Error: Docs object does not have 'content' attribute.")
-                        raise ValueError("Docs object does not have 'content' attribute.")
+                        print(f"❌ Error: Docs object does not have 'page_content' attribute.")
+                        raise ValueError("Docs object does not have 'page_content' attribute.")
+
 
                 vector_db_manager.vectorstore.add_documents(documents)
                 vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
@@ -193,6 +200,8 @@ def upload_content():
             # form 요청 처리
             title = request.form.get("title")
             url = request.form.get("url")
+
+        print(f"Received Weblink - Title: {title}, URL: {url}")  # 로그 추가
 
         if not title or not url:
             return jsonify({"error": "Title and URL are required"}), 400
@@ -271,11 +280,17 @@ def list_files():
         print(f"Error while listing files: {e}")
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-@file_routes.route('/delete/<string:title>', methods=['DELETE'])
+from urllib.parse import unquote
+
+@file_routes.route('/delete/<path:title>', methods=['DELETE'])
 def delete_file(title):
     """
     제목을 기준으로 메타데이터와 벡터 데이터를 동기화하여 삭제.
     """
+    # 디코딩된 title 사용
+    decoded_title = unquote(title)
+    print(f"Received DELETE request for title: {decoded_title}")
+
     username = request.headers.get('username')
     if not username:
         return jsonify({"error": "Username not provided"}), 400
@@ -284,9 +299,9 @@ def delete_file(title):
         return jsonify({"error": "Access denied. Only admins can delete files."}), 403
 
     # 제목을 기준으로 메타데이터 검색
-    metadata = FileMetadata.query.filter_by(name=title).first()
+    metadata = FileMetadata.query.filter_by(name=decoded_title).first()
     if not metadata:
-        return jsonify({"error": f"File with title '{title}' not found"}), 404
+        return jsonify({"error": f"File with title '{decoded_title}' not found"}), 404
 
     try:
         # 데이터베이스에서 메타데이터 삭제
@@ -295,18 +310,17 @@ def delete_file(title):
 
         # 벡터 데이터 삭제
         try:
-            result = vector_db_manager.delete_doc_by_title(title)  # vector_db_manager의 메서드 호출
+            result = vector_db_manager.delete_doc_by_title(decoded_title)
             if result.get("message", "").startswith("✅"):
                 return jsonify({
-                    "message": f"File '{title}' and its vector data deleted successfully"
+                    "message": f"File '{decoded_title}' and its vector data deleted successfully"
                 }), 200
             else:
                 return jsonify({
                     "message": f"Metadata deleted, but vector data could not be deleted. Reason: {result.get('message')}"
                 }), 200
-
         except Exception as vector_error:
-            print(f"Warning: Failed to delete vector data for title '{title}'. Error: {vector_error}")
+            print(f"Warning: Failed to delete vector data for title '{decoded_title}'. Error: {vector_error}")
             return jsonify({
                 "message": "Metadata deleted, but vector data deletion failed.",
                 "error": str(vector_error)
