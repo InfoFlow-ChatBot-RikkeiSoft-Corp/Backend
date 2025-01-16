@@ -19,6 +19,17 @@ class User(db.Model):
 
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
+        
+class Token(db.Model):
+    __tablename__ = 'tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    token = db.Column(db.Text, nullable=False, unique=True)
+    issued_at = db.Column(db.DateTime, default=datetime.utcnow)
+    revoked = db.Column(db.Boolean, default=False)
+
+    user = db.relationship('User', backref=db.backref('tokens', lazy=True))
 
 class FileMetadata(db.Model):
     __tablename__ = 'files'

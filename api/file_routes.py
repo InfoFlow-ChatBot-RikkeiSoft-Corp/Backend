@@ -18,6 +18,7 @@ from pytz import timezone
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import os
+from urllib.parse import unquote
 
 # Load environment variables
 load_dotenv()
@@ -280,37 +281,38 @@ def list_files():
         print(f"Error while listing files: {e}")
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-from urllib.parse import unquote
+
 
 @file_routes.route('/delete/<path:title>', methods=['DELETE'])
 def delete_file(title):
     """
     제목을 기준으로 메타데이터와 벡터 데이터를 동기화하여 삭제.
     """
+
     # 디코딩된 title 사용
     decoded_title = unquote(title)
     print(f"Received DELETE request for title: {decoded_title}")
-
     username = request.headers.get('username')
     if not username:
         print("Error: Username not provided")
         return jsonify({"error": "Username not provided"}), 400
-
+ 
     if not is_admin(username):
         print(f"Access denied for user: {username}")
         return jsonify({"error": "Access denied. Only admins can delete files."}), 403
-
+ 
     # 제목을 기준으로 메타데이터 검색
     print(f"Searching for metadata with name: {decoded_title}")
     metadata = FileMetadata.query.filter_by(name=decoded_title).first()
     if not metadata:
+
         print(f"File with title '{decoded_title}' not found in database.")
         return jsonify({"error": f"File with title '{decoded_title}' not found"}), 404
-
     try:
         # 데이터베이스에서 메타데이터 삭제
         db.session.delete(metadata)
         db.session.commit()
+
         print(f"Metadata for file '{decoded_title}' deleted successfully.")
 
         # 벡터 데이터 삭제
@@ -333,7 +335,7 @@ def delete_file(title):
                 "message": "Metadata deleted, but vector data deletion failed.",
                 "error": str(vector_error)
             }), 200
-
+ 
     except Exception as e:
         print(f"Database error: {str(e)}")
         db.session.rollback()
