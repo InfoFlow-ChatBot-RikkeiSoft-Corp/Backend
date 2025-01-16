@@ -101,7 +101,7 @@ def login():
             return jsonify({'error': 'Invalid credentials'}), 401
 
         token = jwt.encode({'user_id': user.id, 'exp': datetime.utcnow() + timedelta(hours=1)}, SECRET_KEY, algorithm='HS256')
-        return jsonify({'message': 'Login successful', 'token': token}), 200
+        return jsonify({'message': 'Login successful', 'token': token, 'user_id': user.id}), 200
 
 
 @auth_routes.route('/logout', methods=['POST'])
