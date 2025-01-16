@@ -293,29 +293,37 @@ def delete_file(title):
 
     username = request.headers.get('username')
     if not username:
+        print("Error: Username not provided")
         return jsonify({"error": "Username not provided"}), 400
 
     if not is_admin(username):
+        print(f"Access denied for user: {username}")
         return jsonify({"error": "Access denied. Only admins can delete files."}), 403
 
     # 제목을 기준으로 메타데이터 검색
+    print(f"Searching for metadata with name: {decoded_title}")
     metadata = FileMetadata.query.filter_by(name=decoded_title).first()
     if not metadata:
+        print(f"File with title '{decoded_title}' not found in database.")
         return jsonify({"error": f"File with title '{decoded_title}' not found"}), 404
 
     try:
         # 데이터베이스에서 메타데이터 삭제
         db.session.delete(metadata)
         db.session.commit()
+        print(f"Metadata for file '{decoded_title}' deleted successfully.")
 
         # 벡터 데이터 삭제
         try:
+            print(f"Attempting to delete vector data for title: {decoded_title}")
             result = vector_db_manager.delete_doc_by_title(decoded_title)
             if result.get("message", "").startswith("✅"):
+                print(f"Vector data for title '{decoded_title}' deleted successfully.")
                 return jsonify({
                     "message": f"File '{decoded_title}' and its vector data deleted successfully"
                 }), 200
             else:
+                print(f"Vector data for title '{decoded_title}' could not be deleted. Reason: {result.get('message')}")
                 return jsonify({
                     "message": f"Metadata deleted, but vector data could not be deleted. Reason: {result.get('message')}"
                 }), 200
@@ -327,5 +335,6 @@ def delete_file(title):
             }), 200
 
     except Exception as e:
+        print(f"Database error: {str(e)}")
         db.session.rollback()
         return jsonify({"error": f"Database error: {str(e)}"}), 500
