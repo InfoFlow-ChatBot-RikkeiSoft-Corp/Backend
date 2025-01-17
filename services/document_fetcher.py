@@ -5,7 +5,6 @@ from langchain.schema import Document as LangChainDocument
 from pdf2image import convert_from_path
 import pytesseract
 from services.docs import Docs
-
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
@@ -53,24 +52,28 @@ class DocumentFetcher:
         except Exception as e:
             raise RuntimeError(f"Error loading .txt file: {e}")
 
-
     def load_docx(self, file_path):
         """
-        Load a .docx file and return a Docs object.
+        Load a .docx file and return Docs objects with consistent page_content.
         """
         try:
-            # Use UnstructuredWordDocumentLoader to load .docx files
             loader = UnstructuredWordDocumentLoader(file_path)
             docs = loader.load()
 
             if not docs:
                 raise RuntimeError("No content found in the .docx file.")
-            
-            # `page_content` 속성으로 변환
-            return [Docs.from_file(file_path=file_path, content=doc.page_content) for doc in docs]
 
+            return [
+                Docs.from_file(
+                    file_path=file_path,
+                    content=doc.page_content if hasattr(doc, 'page_content') else "No content available."
+                )
+                for doc in docs
+            ]
         except Exception as e:
             raise RuntimeError(f"Error loading .docx file: {e}")
+
+
         
     def extract_text_with_ocr(self, file_path):
         """
