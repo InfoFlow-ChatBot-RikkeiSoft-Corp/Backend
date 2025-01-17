@@ -250,16 +250,32 @@ def list_files():
 
     sort_by = request.args.get('sort_by', 'name')
     sort_order = request.args.get('order', 'asc')
+    file_type = request.args.get('type')  # 추가된 타입 필터
+    is_url = request.args.get('is_url')  # URL 여부 필터
+    print(f"is_url: {is_url}")
 
     if sort_by not in ['name', 'size', 'type', 'upload_date']:
         return jsonify({"error": "Invalid sort parameter"}), 400
 
     try:
-        # 정렬 조건에 따라 파일 메타데이터를 쿼리
-        query = FileMetadata.query.order_by(
+        # 기본 쿼리 생성
+        query = FileMetadata.query
+
+        # 타입 필터 적용
+        if file_type:
+            query = query.filter(FileMetadata.type == file_type)
+
+        # URL 여부 필터 적용
+        if is_url is not None:
+            is_url = is_url.lower() == 'true'
+            query = query.filter(FileMetadata.type == 'url' if is_url else FileMetadata.type != 'url')
+
+        # 정렬 조건 적용
+        query = query.order_by(
             getattr(FileMetadata, sort_by).asc() if sort_order == 'asc' else getattr(FileMetadata, sort_by).desc()
         )
-        print(f"Sorting by: {sort_by}, Order: {sort_order}")
+
+        print(f"Sorting by: {sort_by}, Order: {sort_order}, Type: {file_type}, Is URL: {is_url}")
         files = query.all()
 
         # 파일 메타데이터를 제목(title) 중심으로 구성
@@ -277,8 +293,6 @@ def list_files():
     except Exception as e:
         print(f"Error while listing files: {e}")
         return jsonify({"error": f"Database error: {str(e)}"}), 500
-
-
 
 @file_routes.route('/delete/<path:title>', methods=['DELETE'])
 def delete_file(title):
