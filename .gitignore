@@ -8,3 +8,5 @@ api/__pycache__/
 services/__pycache__/
 initialize_faiss.py
 db_check.py
+faiss_db/
+__pycache__/
