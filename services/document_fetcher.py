@@ -11,6 +11,7 @@ from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
 from services.docs import Docs
 import os
+import docx2txt
 
 class DocumentFetcher:
     def __init__(self):
@@ -31,15 +32,17 @@ class DocumentFetcher:
                 raise RuntimeError("No content found. Please check if the provided URL is correct.")
             
             page_content = docs[0].page_content
-            # 제목 추출
-            if "<h1" in page_content:
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(page_content, "html.parser")
-                title_tag = soup.find("h1")  # `<h1>` 태그에서 제목 가져오기
-                title = title_tag.get_text(strip=True) if title_tag else "No Title Found"
-            return Docs.from_web(title=title, url=url, content=page_content)
+            # 제목에서 'string ' 접두사 제거
+            clean_title = title.replace('string ', '') if isinstance(title, str) else title
+            
+            return Docs.from_web(
+                title=clean_title,
+                url=url,
+                content=page_content
+            )
 
         except Exception as e:
+            print(f"Error fetching document: {e}")
             raise RuntimeError(f"Error fetching document: {e}")
 
     def load_txt(self, file_path):
@@ -56,21 +59,49 @@ class DocumentFetcher:
 
     def load_docx(self, file_path):
         """
-        Load a .docx file and return a Docs object.
+        Load a .docx file and return a list of Docs objects.
         """
         try:
-            # Use UnstructuredWordDocumentLoader to load .docx files
-            loader = UnstructuredWordDocumentLoader(file_path)
-            docs = loader.load()
+            # 먼저 UnstructuredWordDocumentLoader 시도
+            try:
+                loader = UnstructuredWordDocumentLoader(file_path)
+                documents = loader.load()
+                if documents:
+                    print("✅ Successfully loaded DOCX using UnstructuredWordDocumentLoader")
+                    
+                    # 파일 이름에서 title 추출
+                    file_name = os.path.basename(file_path)
+                    title = os.path.splitext(file_name)[0]
+                    
+                    return [
+                        Document(
+                            page_content=doc.page_content,
+                            metadata={"source": file_path, "title": title}
+                        )
+                        for doc in documents
+                    ]
+            except Exception as e:
+                print(f"⚠️ UnstructuredWordDocumentLoader failed: {e}, trying docx2txt...")
 
-            if not docs:
-                raise RuntimeError("No content found in the .docx file.")
-            
-            # `page_content` 속성으로 변환
-            return [Docs.from_file(file_path=file_path, content=doc.page_content) for doc in docs]
+            # UnstructuredWordDocumentLoader가 실패하면 docx2txt 사용
+            content = docx2txt.process(file_path)
+            if content.strip():
+                print("✅ Successfully loaded DOCX using docx2txt")
+                
+                # 파일 이름에서 title 추출
+                file_name = os.path.basename(file_path)
+                title = os.path.splitext(file_name)[0]
+                
+                return [Document(
+                    page_content=content,
+                    metadata={"source": file_path, "title": title}
+                )]
+            else:
+                raise ValueError("No content extracted from DOCX file")
 
         except Exception as e:
-            raise RuntimeError(f"Error loading .docx file: {e}")
+            print(f"❌ Error loading DOCX file: {e}")
+            raise RuntimeError(f"Error loading DOCX file: {e}")
         
     def extract_text_with_ocr(self, file_path):
         """

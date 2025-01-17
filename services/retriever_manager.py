@@ -11,37 +11,103 @@ class RetrieverManager:
 
     def retrieve_context(self, question, k=3, search_type="similarity", similarity_threshold=0.7):
         """
-        질문에 대한 컨텍스트를 검색.
+        질문에 대한 컨텍스트를 검색하고 관련성을 검증합니다.
         """
         try:
-
             # 벡터 DB에서 문서 검색
             docs = self.vector_db_manager.search(
-                query=question, k=k, search_type=search_type, similarity_threshold=similarity_threshold
+                query=question, 
+                k=k, 
+                search_type=search_type, 
+                similarity_threshold=similarity_threshold
             )
+
+            if not docs:
+                return {
+                    "context": "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다.",
+                    "references": []
+                }
 
             # 검색된 문서의 본문과 메타데이터를 기반으로 컨텍스트 생성
             references = []
             context_list = []
+            relevant_docs = []
 
             for doc in docs:
-                content = doc.page_content  # 본문 내용
-                metadata = doc.metadata  # 메타데이터 (제목, URL 등)
-                title = metadata.get("title", "제목 없음")
-                url = metadata.get("url", "URL 없음")
+                # 문서 관련성 점수 계산
+                similarity_score = self._calculate_similarity(question, doc.page_content)
+                
+                # similarity_threshold보다 높은 점수를 가진 문서만 포함
+                if similarity_score >= similarity_threshold:
+                    relevant_docs.append(doc)
+                    content = doc.page_content
+                    metadata = doc.metadata
+                    
+                    title = metadata.get("title", "제목 없음")
+                    url = metadata.get("url", "URL 없음")
 
-            # 본문 내용 추가
-            if content.strip():
-                context_list.append(f"{content}\n출처: {title} ({url})")
-            references.append({"title": title, "url": url, "content": content})
+                    if content.strip():
+                        context_list.append(f"{content}\n출처: {title}" + (f" ({url})" if url != "URL 없음" else ""))
+                    
+                    references.append({
+                        "title": title,
+                        "url": url,
+                        "content": content,
+                        "similarity_score": similarity_score  # 디버깅을 위한 점수 포함
+                    })
+
+            # 관련 문서가 없는 경우
+            if not relevant_docs:
+                return {
+                    "context": "주어진 정보에서 질문과 관련된 정보를 찾을 수 없습니다.",
+                    "references": []
+                }
 
             # 컨텍스트 본문 조합
             context = "\n\n".join(context_list)
 
-            # 결과 반환
+            # 디버깅 정보 출력
+            print(f"\n=== Retrieval Debug Info ===")
+            print(f"Question: {question}")
+            print(f"Total documents found: {len(docs)}")
+            print(f"Relevant documents: {len(relevant_docs)}")
+            print(f"Similarity threshold: {similarity_threshold}")
+            for ref in references:
+                print(f"Document: {ref['title']}, Score: {ref['similarity_score']:.3f}")
+            print("=== End Debug Info ===\n")
+
             return {
-                "context": context if context else "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다.",
+                "context": context,
                 "references": references
             }
+
         except Exception as e:
+            print(f"Error during context retrieval: {e}")
             raise RuntimeError(f"Error during context retrieval: {e}")
+
+    def _calculate_similarity(self, question, content):
+        """
+        질문과 문서 내용 간의 유사도를 계산합니다.
+        """
+        try:
+            # 벡터 임베딩 생성
+            question_embedding = self.vector_db_manager.generate_embedding(question)
+            content_embedding = self.vector_db_manager.generate_embedding(content)
+            
+            # 코사인 유사도 계산
+            similarity = self._cosine_similarity(question_embedding, content_embedding)
+            return similarity
+
+        except Exception as e:
+            print(f"Error calculating similarity: {e}")
+            return 0.0
+
+    def _cosine_similarity(self, vec1, vec2):
+        """
+        두 벡터 간의 코사인 유사도를 계산합니다.
+        """
+        import numpy as np
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        return dot_product / (norm1 * norm2)

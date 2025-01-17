@@ -81,6 +81,10 @@ class ChatGenerator:
         질문과 문맥을 기반으로 LLM을 호출하여 답변 생성.
         """
         try:
+            # 디버깅을 위한 로그 추가
+            print("\n=== Debug Info ===")
+            print("Received context:", context)
+            
             # 1. 문맥 정보 분리
             context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
             references = context.get("references", [])
@@ -119,20 +123,31 @@ class ChatGenerator:
             # 6. AI 응답 메시지 저장
             self.add_ai_message(conversation_id, answer)
 
-            # 7. 참조 문서 정보를 답변에 추가
-            if references:
-                reference_texts = "\n".join([
-                    f"- {ref['title']}" if ref['url'] == "URL 없음" else f"- {ref['title']} ({ref['url']})"
-                    for ref in references
-                ])
-                answer += f"\n\n참고 자료:\n{reference_texts}"
+            # 참고 자료 형식 수정
+            if context.get("references"):
+                reference_texts = []
+                print("\nProcessing references:")
+                for ref in context["references"]:
+                    print("Original reference:", ref)
+                    title = ref.get("title", "").replace("string ", "") if ref.get("title") else ""
+                    url = ref.get("url", "").replace("string ", "") if ref.get("url") else ""
+                    print(f"Cleaned title: {title}")
+                    print(f"Cleaned url: {url}")
+                    
+                    if url and url != "URL 없음":
+                        reference_texts.append(f"- {title} ({url})")
+                    else:
+                        reference_texts.append(f"- {title}")
+                
+                if reference_texts:
+                    print("\nFinal reference texts:", reference_texts)
+                    answer += "\n\n참고 자료:\n" + "\n".join(reference_texts)
 
-            # 디버깅 로그: 최종 답변 확인
-            print(f"✅ Final Answer:\n{answer}")
+            print("\nFinal answer:", answer)
+            print("=== End Debug Info ===\n")
 
             return answer
 
         except Exception as e:
-            # 8. 예외 처리 및 디버깅 로그
-            print(f"❌ Error generating answer: {e}")
-            return "답변을 생성하는 중 오류가 발생했습니다."
+            print(f"Error generating answer: {e}")
+            raise RuntimeError(f"Error generating answer: {e}")
