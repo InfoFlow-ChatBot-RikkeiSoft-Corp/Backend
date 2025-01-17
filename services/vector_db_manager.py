@@ -54,7 +54,7 @@ class VectorDBManager:
     def add_doc_to_db(self, doc):
         try:
             print(f"Processing document: {doc.metadata.get('title', '제목 없음')}")
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=100)
             splits = text_splitter.split_text(doc.content)
 
             if not splits:
