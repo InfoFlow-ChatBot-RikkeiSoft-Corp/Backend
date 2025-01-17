@@ -123,72 +123,68 @@ def upload_content():
             temp_path = os.path.join("temp_uploads", secure_filename(file_name))
             file.save(temp_path)
 
+            # Initialize docs variable
+            docs = []
+
             # Process the document based on file extension
             if file_extension == 'docx':
                 docs = document_fetcher.load_docx(temp_path)
-            elif file_extension == 'txt':
-                docs = document_fetcher.load_txt(temp_path)
             elif file_extension == 'pdf':
                 docs = document_fetcher.load_pdf(temp_path)
+            elif file_extension == 'txt':
+                docs = document_fetcher.load_txt(temp_path)
             else:
                 return jsonify({"error": "Unsupported file format"}), 400
 
-            # 디버깅: 로드된 문서의 타입과 내용 확인
-            print(f"Debug: Docs object type: {type(docs)}")
-            if isinstance(docs, list):
-                print(f"Debug: Number of documents loaded: {len(docs)}")
-                for i, doc in enumerate(docs):
-                    print(f"Doc {i} metadata: {doc.metadata}")  # 메타데이터 출력
-                    if hasattr(doc, 'page_content'):
-                        print(f"Doc {i} page content (first 500 chars): {doc.page_content[:500]}")  # 첫 500자 출력
-                    else:
-                        print(f"Doc {i} has no 'page_content' attribute")
-            else:
-                print("Docs is not a list. Value:", docs)
+            # Validate docs
+            if not docs or not isinstance(docs, list):
+                raise RuntimeError("Failed to process document. 'docs' is invalid or empty.")
 
-            if docs:
-                if not isinstance(docs, list):  # 단일 객체라면 리스트로 변환
-                    docs = [docs]
+            # Process documents into text chunks
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            documents = []
 
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-                documents = []
-
-                for doc in docs:
-                    if hasattr(doc, 'page_content'):  # `page_content` 속성 확인
-                        splits = text_splitter.split_text(doc.page_content)  # `page_content` 사용
-                        for split in splits:
-                            documents.append(
-                                Document(
-                                    page_content=split,
-                                    metadata={
-                                        "title": doc.metadata.get("title", file_name),
-                                        "source": doc.metadata.get("source", temp_path),
-                                    }
-                                )
+            for doc in docs:
+                if hasattr(doc, 'page_content') and doc.page_content:
+                    splits = text_splitter.split_text(doc.page_content)
+                    for split in splits:
+                        documents.append(
+                            Document(
+                                page_content=split,
+                                metadata={
+                                    "title": doc.metadata.get("title", file_name),
+                                    "source": doc.metadata.get("source", temp_path),
+                                }
                             )
-                    else:
-                        print(f"❌ Error: Docs object does not have 'page_content' attribute.")
-                        raise ValueError("Docs object does not have 'page_content' attribute.")
+                        )
+                else:
+                    # Handle missing page_content
+                    print(f"❌ Warning: Docs object does not have 'page_content' attribute. Adding default content.")
+                    documents.append(
+                        Document(
+                            page_content="No content available.",
+                            metadata={
+                                "title": doc.metadata.get("title", file_name),
+                                "source": doc.metadata.get("source", temp_path),
+                            }
+                        )
+                    )
 
+            # Add documents to vector store
+            vector_db_manager.vectorstore.add_documents(documents)
+            vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
 
-                vector_db_manager.vectorstore.add_documents(documents)
-                vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
+            # Save metadata to the database
+            metadata = FileMetadata(
+                name=file_name, size=file_size, type=file_extension, upload_date=upload_date, user_id=user.id
+            )
+            db.session.add(metadata)
+            db.session.commit()
 
-                # Save metadata to the database
-                metadata = FileMetadata(
-                    name=file_name, size=file_size, type=file_extension, upload_date=upload_date, user_id=user.id
-                )
-                db.session.add(metadata)
-                db.session.commit()
-
-                return jsonify({"message": "File uploaded successfully", "document_count": len(documents)}), 201
-            else:
-                return jsonify({"error": "Failed to process the document content"}), 500
-
-
+            return jsonify({"message": "File uploaded successfully", "document_count": len(documents)}), 201
         except Exception as e:
-            db.session.rollback()
-            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+            print(f"Error processing file: {e}")
+            return jsonify({"error": f"An error occurred: {e}"}), 500
 
     # URL 업로드 요청 처리
     elif ('title' in request.form and 'url' in request.form) or request.is_json:
@@ -210,7 +206,7 @@ def upload_content():
         user = User.query.filter_by(username=username).first()
         if not user:
             return jsonify({"error": "User not found"}), 404
-        
+
         try:
             # URL을 사용하여 문서 가져오기 및 벡터 DB 추가
             doc = document_fetcher.fetch(title, url)
@@ -239,6 +235,7 @@ def upload_content():
     # 유효하지 않은 요청 처리
     else:
         return jsonify({"error": "Invalid request. Provide a file or title and URL."}), 400
+
 
 @file_routes.route('/list_files', methods=['GET'])
 def list_files():
