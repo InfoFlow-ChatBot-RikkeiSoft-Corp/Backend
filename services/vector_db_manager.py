@@ -202,27 +202,32 @@ class VectorDBManager:
     def delete_doc_by_title(self, title: str):
         """title을 기반으로 문서를 삭제"""
         try:
-            # 모든 문서 출력
-            print("📄 현재 저장된 문서 목록:")
+            print(f"📄 현재 저장된 문서 목록:")
             for doc_id, doc in self.vectorstore.docstore._dict.items():
                 print(f"ID: {doc_id}, Title: {doc.metadata.get('title')}, Metadata: {doc.metadata}")
+
+            # 파일 확장자 제거
+            title_without_extension = os.path.splitext(title)[0].strip().lower()
 
             # docstore에서 title로 해당 ID 가져오기
             doc_ids_to_delete = [
                 doc_id for doc_id, doc in self.vectorstore.docstore._dict.items()
-                if doc.metadata.get("title") == title
+                if doc.metadata.get("title", "").strip().lower() == title_without_extension
             ]
+            print(f"📝 삭제할 문서 ID 리스트: {doc_ids_to_delete}")
 
             if not doc_ids_to_delete:
-                return {"message": f"❌ '{title}' 제목의 문서를 찾을 수 없습니다."}
-
-            print(f"📝 삭제할 문서 ID 리스트: {doc_ids_to_delete}")
+                all_titles = [doc.metadata.get("title", "제목 없음") for doc in self.vectorstore.docstore._dict.values()]
+                print(f"Available titles in vectorstore: {all_titles}")
+                return {"message": f"❌ '{title}' 제목의 문서를 찾을 수 없습니다. 저장된 제목들: {all_titles}"}
 
             # 삭제 수행
             self.vectorstore.delete(doc_ids_to_delete)
             self.vectorstore.save_local(self.vectorstore_path)
+            print(f"✅ Vectorstore successfully saved after deletion.")
 
             return {"message": f"✅ '{title}' 제목의 문서가 성공적으로 삭제되었습니다."}
 
         except Exception as e:
+            print(f"❌ Error during vector data deletion: {e}")
             raise RuntimeError(f"Error deleting document by title: {e}")

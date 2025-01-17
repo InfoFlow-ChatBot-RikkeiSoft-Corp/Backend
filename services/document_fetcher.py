@@ -5,7 +5,6 @@ from langchain.schema import Document as LangChainDocument
 from pdf2image import convert_from_path
 import pytesseract
 from services.docs import Docs
-
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
@@ -42,27 +41,39 @@ class DocumentFetcher:
         except Exception as e:
             raise RuntimeError(f"Error fetching document: {e}")
 
-    def load_docx(self, file_path):
+    def load_txt(self, file_path):
         """
-        Load a .docx file and return a Docs object.
-
-        :param file_path: Path to the .docx file
-        :return: Docs object containing title, file path, and content
+        Load a .txt file and return a list of Docs objects.
         """
         try:
-            # Use UnstructuredWordDocumentLoader to load .docx files
-            loader = PDFPlumberLoader(file_path)
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            return [Docs.from_file(file_path=file_path, content=content)]  # content가 포함된 Docs 반환
+        except Exception as e:
+            raise RuntimeError(f"Error loading .txt file: {e}")
+
+    def load_docx(self, file_path):
+        """
+        Load a .docx file and return Docs objects with consistent page_content.
+        """
+        try:
+            loader = UnstructuredWordDocumentLoader(file_path)
             docs = loader.load()
 
             if not docs:
                 raise RuntimeError("No content found in the .docx file.")
-            # Extract content from the first document
-            content = docs[0].page_content
 
-            return Docs.from_file(file_path=file_path, content=content)
-
+            return [
+                Docs.from_file(
+                    file_path=file_path,
+                    content=doc.page_content if hasattr(doc, 'page_content') else "No content available."
+                )
+                for doc in docs
+            ]
         except Exception as e:
             raise RuntimeError(f"Error loading .docx file: {e}")
+
+
         
     def extract_text_with_ocr(self, file_path):
         """
@@ -99,7 +110,7 @@ class DocumentFetcher:
 
                 # 파일 이름에서 title 추출
                 file_name = os.path.basename(file_path)
-                title = os.path.splitext(file_name)[0]  # 확장자 제거하여 제목으로 사용
+                title = os.path.splitext(file_name)[0]
 
                 return [
                     LangChainDocument(
@@ -116,9 +127,16 @@ class DocumentFetcher:
                     title = os.path.splitext(file_name)[0]
                     return [LangChainDocument(page_content=ocr_text, metadata={"source": file_path, "title": title})]
                 else:
+                    print("No text could be extracted from PDF.")
                     return []
 
-
+        except FileNotFoundError:
+            print(f"Error: File not found at path {file_path}")
+            return []
+        except PermissionError:
+            print(f"Error: Permission denied for file at path {file_path}")
+            return []
         except Exception as e:
+            # General exception handling
             print(f"Error processing PDF file: {e}")
             return []
