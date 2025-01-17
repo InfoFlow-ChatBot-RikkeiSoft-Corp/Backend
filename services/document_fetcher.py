@@ -5,7 +5,6 @@ from langchain.schema import Document as LangChainDocument
 from pdf2image import convert_from_path
 import pytesseract
 from services.docs import Docs
-
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
@@ -56,7 +55,6 @@ class DocumentFetcher:
         except Exception as e:
             raise RuntimeError(f"Error loading .txt file: {e}")
 
-
     def load_docx(self, file_path):
         """
         Load a .docx file and return a list of Docs objects.
@@ -99,9 +97,18 @@ class DocumentFetcher:
             else:
                 raise ValueError("No content extracted from DOCX file")
 
+
+            return [
+                Docs.from_file(
+                    file_path=file_path,
+                    content=doc.page_content if hasattr(doc, 'page_content') else "No content available."
+                )
+                for doc in docs
+            ]
         except Exception as e:
             print(f"❌ Error loading DOCX file: {e}")
             raise RuntimeError(f"Error loading DOCX file: {e}")
+
         
     def extract_text_with_ocr(self, file_path):
         """
