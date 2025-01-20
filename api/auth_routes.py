@@ -1,4 +1,3 @@
-
 from flask import Blueprint, request, jsonify, redirect, url_for
 from models.models import db, User, Log, Token, Conversation
 import jwt
@@ -237,34 +236,47 @@ def get_conversations(current_user):
     Example: GET /conversations?titlesOnly=true
     Returns all conversations for the logged-in user, optionally only ID/title/timestamp
     """
+    print(f"📍 GET /conversations request from user: {current_user.username}")
     titles_only = request.args.get('titlesOnly') == 'true'
-    if titles_only:
-        convs = db.session.query(Conversation.id, Conversation.title, Conversation.timestamp) \
-                          .filter_by(user_id=current_user.id) \
-                          .order_by(Conversation.timestamp.desc()).all()
-        data = []
-        for c_id, c_title, c_ts in convs:
-            data.append({
-                "id": c_id,
-                "title": c_title,
-                "timestamp": c_ts
-            })
-        return jsonify(data), 200
-    else:
-        convs = Conversation.query.filter_by(user_id=current_user.id) \
-                                  .order_by(Conversation.timestamp.desc()).all()
-        data = []
-        for c in convs:
-            data.append({
-                "id": c.id,
-                "gid": c.gid,
-                "title": c.title,
-                "timestamp": c.timestamp,
-                "messages": c.messages,
-                "model": c.model,
-                "systemPrompt": c.systemPrompt
-            })
-        return jsonify(data), 200
+    
+    try:
+        if titles_only:
+            print("📍 Fetching titles only")
+            convs = db.session.query(Conversation.id, Conversation.title, Conversation.timestamp) \
+                              .filter_by(user_id=current_user.id) \
+                              .order_by(Conversation.timestamp.desc()).all()
+            print(f"📍 Found {len(convs)} conversations")
+            data = []
+            for c_id, c_title, c_ts in convs:
+                data.append({
+                    "id": c_id,
+                    "title": c_title,
+                    "timestamp": c_ts
+                })
+            print(f"📍 Returning data: {data}")
+            return jsonify(data), 200
+        else:
+            print("📍 Fetching full conversation data")
+            convs = Conversation.query.filter_by(user_id=current_user.id) \
+                                      .order_by(Conversation.timestamp.desc()).all()
+            print(f"📍 Found {len(convs)} conversations")
+            data = []
+            for c in convs:
+                conv_data = {
+                    "id": c.id,
+                    "gid": c.gid,
+                    "title": c.title,
+                    "timestamp": c.timestamp,
+                    "messages": c.messages,
+                    "model": c.model,
+                    "systemPrompt": c.systemPrompt
+                }
+                print(f"📍 Conversation data: {conv_data}")
+                data.append(conv_data)
+            return jsonify(data), 200
+    except Exception as e:
+        print(f"❌ Error in get_conversations: {str(e)}")
+        return jsonify({"error": f"Failed to fetch conversations: {str(e)}"}), 500
 
 @auth_routes.route('/conversations/search', methods=['GET'])
 @token_required
@@ -273,47 +285,65 @@ def search_conversations(current_user):
     Example: GET /conversations/search?in=convo&q=someTerm
              GET /conversations/search?q=titleTerm
     """
+    print(f"📍 Search request from user: {current_user.username}")
     in_param = request.args.get('in')
     q = request.args.get('q', '')
+    print(f"📍 Search parameters - in: {in_param}, query: {q}")
 
-    if in_param == 'convo':
-        # Search in messages
-        found = Conversation.query.filter(
-            Conversation.user_id == current_user.id,
-            Conversation.messages.ilike(f'%{q}%')
-        ).all()
-    else:
-        # Title search
-        found = Conversation.query.filter(
-            Conversation.user_id == current_user.id,
-            Conversation.title.ilike(f'%{q}%')
-        ).all()
+    try:
+        if in_param == 'convo':
+            print("📍 Searching in messages")
+            found = Conversation.query.filter(
+                Conversation.user_id == current_user.id,
+                Conversation.messages.ilike(f'%{q}%')
+            ).all()
+        else:
+            print("📍 Searching in titles")
+            found = Conversation.query.filter(
+                Conversation.user_id == current_user.id,
+                Conversation.title.ilike(f'%{q}%')
+            ).all()
 
-    data = []
-    for c in found:
-        data.append({
-            "id": c.id,
-            "title": c.title,
-            "timestamp": c.timestamp,
-            "messages": "[]"  # if you want to omit the actual messages
-        })
-    return jsonify(data), 200
-    
+        print(f"📍 Found {len(found)} conversations")
+        data = []
+        for c in found:
+            conv_data = {
+                "id": c.id,
+                "title": c.title,
+                "timestamp": c.timestamp,
+                "messages": "[]"  # if you want to omit the actual messages
+            }
+            print(f"📍 Conversation data: {conv_data}")
+            data.append(conv_data)
+        return jsonify(data), 200
+    except Exception as e:
+        print(f"❌ Error in search_conversations: {str(e)}")
+        return jsonify({"error": f"Search failed: {str(e)}"}), 500
 
 @auth_routes.route('/conversations/<int:conv_id>', methods=['GET'])
 @token_required
 def get_conversation(current_user, conv_id):
-    conversation = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first()
-    if not conversation:
-        return jsonify({"error": "Conversation not found"}), 404
-    return jsonify({
-        "id": conversation.id,
-        "title": conversation.title,
-        "timestamp": conversation.timestamp,
-        "messages": conversation.messages,
-        "model": conversation.model,
-        "systemPrompt": conversation.systemPrompt
-    }), 200
+    print(f"📍 GET conversation {conv_id} request from user: {current_user.username}")
+    
+    try:
+        conversation = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first()
+        if not conversation:
+            print(f"❌ Conversation {conv_id} not found")
+            return jsonify({"error": "Conversation not found"}), 404
+        
+        response_data = {
+            "id": conversation.id,
+            "title": conversation.title,
+            "timestamp": conversation.timestamp,
+            "messages": conversation.messages,
+            "model": conversation.model,
+            "systemPrompt": conversation.systemPrompt
+        }
+        print(f"📍 Returning conversation data: {response_data}")
+        return jsonify(response_data), 200
+    except Exception as e:
+        print(f"❌ Error in get_conversation: {str(e)}")
+        return jsonify({"error": f"Failed to fetch conversation: {str(e)}"}), 500
 
 @auth_routes.route('/conversations', methods=['POST'])
 @token_required

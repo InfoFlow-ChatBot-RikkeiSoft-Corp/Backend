@@ -14,6 +14,10 @@ class RetrieverManager:
         질문에 대한 컨텍스트를 검색하고 관련성을 검증합니다.
         """
         try:
+            print("\n=== 🔍 Context Retrieval Debug Info ===")
+            print(f"Question: {question}")
+            print(f"Search params - k: {k}, type: {search_type}, threshold: {similarity_threshold}")
+
             # 벡터 DB에서 문서 검색
             docs = self.vector_db_manager.search(
                 query=question, 
@@ -22,7 +26,10 @@ class RetrieverManager:
                 similarity_threshold=similarity_threshold
             )
 
+            print(f"Found {len(docs)} initial documents")
+
             if not docs:
+                print("❌ No documents found in initial search")
                 return {
                     "context": "주어진 정보에서 질문에 대한 정보를 찾을 수 없습니다.",
                     "references": []
@@ -36,6 +43,10 @@ class RetrieverManager:
             for doc in docs:
                 # 문서 관련성 점수 계산
                 similarity_score = self._calculate_similarity(question, doc.page_content)
+                print(f"\nDocument Analysis:")
+                print(f"Title: {doc.metadata.get('title', 'No Title')}")
+                print(f"Similarity Score: {similarity_score:.3f}")
+                print(f"Content Preview: {doc.page_content[:100]}...")
                 
                 # similarity_threshold보다 높은 점수를 가진 문서만 포함
                 if similarity_score >= similarity_threshold:
@@ -53,11 +64,15 @@ class RetrieverManager:
                         "title": title,
                         "url": url,
                         "content": content,
-                        "similarity_score": similarity_score  # 디버깅을 위한 점수 포함
+                        "similarity_score": similarity_score
                     })
+                    print(f"✅ Document passed threshold check")
+                else:
+                    print(f"❌ Document filtered out (below threshold)")
 
             # 관련 문서가 없는 경우
             if not relevant_docs:
+                print("❌ No relevant documents found after filtering")
                 return {
                     "context": "주어진 정보에서 질문과 관련된 정보를 찾을 수 없습니다.",
                     "references": []
@@ -65,15 +80,8 @@ class RetrieverManager:
 
             # 컨텍스트 본문 조합
             context = "\n\n".join(context_list)
-
-            # 디버깅 정보 출력
-            print(f"\n=== Retrieval Debug Info ===")
-            print(f"Question: {question}")
-            print(f"Total documents found: {len(docs)}")
-            print(f"Relevant documents: {len(relevant_docs)}")
-            print(f"Similarity threshold: {similarity_threshold}")
-            for ref in references:
-                print(f"Document: {ref['title']}, Score: {ref['similarity_score']:.3f}")
+            print(f"\nFinal context length: {len(context)} characters")
+            print(f"Number of relevant documents: {len(relevant_docs)}")
             print("=== End Debug Info ===\n")
 
             return {
@@ -82,7 +90,7 @@ class RetrieverManager:
             }
 
         except Exception as e:
-            print(f"Error during context retrieval: {e}")
+            print(f"❌ Error during context retrieval: {e}")
             raise RuntimeError(f"Error during context retrieval: {e}")
 
     def _calculate_similarity(self, question, content):
