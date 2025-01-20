@@ -73,49 +73,49 @@ class DocumentFetcher:
 
     def load_docx(self, file_path):
         """
-        Load a .docx file and return a list of Docs objects.
+        docx 파일을 로드하여 Document 객체로 변환
         """
+        print(f"📄 Loading DOCX file: {file_path}")
         try:
-            # 먼저 UnstructuredWordDocumentLoader 시도
-            try:
-                loader = UnstructuredWordDocumentLoader(file_path)
-                documents = loader.load()
-                if documents:
-                    print("✅ Successfully loaded DOCX using UnstructuredWordDocumentLoader")
-                    
-                    # 파일 이름에서 title 추출
-                    file_name = os.path.basename(file_path)
-                    title = os.path.splitext(file_name)[0]
-                    
-                    return [
-                        Document(
-                            page_content=doc.page_content,
-                            metadata={"source": file_path, "title": title}
-                        )
-                        for doc in documents
-                    ]
-            except Exception as e:
-                print(f"⚠️ UnstructuredWordDocumentLoader failed: {e}, trying docx2txt...")
-
-            # UnstructuredWordDocumentLoader가 실패하면 docx2txt 사용
-            content = docx2txt.process(file_path)
-            if content.strip():
-                print("✅ Successfully loaded DOCX using docx2txt")
-                
-                # 파일 이름에서 title 추출
-                file_name = os.path.basename(file_path)
-                title = os.path.splitext(file_name)[0]
-                
-                return [Document(
-                    page_content=content,
-                    metadata={"source": file_path, "title": title}
-                )]
-            else:
-                raise ValueError("No content extracted from DOCX file")
+            # docx2txt 사용 (더 빠른 처리)
+            import docx2txt
+            text = docx2txt.process(file_path)
+            
+            # 파일명 추출
+            filename = os.path.basename(file_path)
+            
+            # 텍스트 분할 (너무 긴 문서 처리)
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=100,
+                length_function=len,
+            )
+            
+            # 청크로 분할
+            texts = text_splitter.split_text(text)
+            print(f"✅ Split document into {len(texts)} chunks")
+            
+            # Document 객체 생성
+            docs = []
+            for i, chunk in enumerate(texts):
+                doc = Document(
+                    page_content=chunk,
+                    metadata={
+                        "source": file_path,
+                        "title": filename,
+                        "id": f"{filename}_chunk_{i}",
+                        "type": "docx",
+                        "chunk": i
+                    }
+                )
+                docs.append(doc)
+            
+            print(f"✅ Successfully loaded DOCX file: {filename}")
+            return docs
 
         except Exception as e:
-            print(f"❌ Error loading DOCX file: {e}")
-            raise RuntimeError(f"Error loading DOCX file: {e}")
+            print(f"❌ Error loading DOCX file: {str(e)}")
+            return []
 
     def extract_text_with_ocr(self, file_path):
         """
