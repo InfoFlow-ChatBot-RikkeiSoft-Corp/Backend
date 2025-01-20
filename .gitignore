@@ -9,5 +9,7 @@ services/__pycache__/
 initialize_faiss.py
 db_check.py
 embedding-test/
-faiss_db
+faiss_db/
 __pycache__/
+temp_uploads/
+faiss_db

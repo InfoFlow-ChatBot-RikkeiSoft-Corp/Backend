@@ -226,3 +226,14 @@ class VectorDBManager:
 
         except Exception as e:
             raise RuntimeError(f"Error deleting document by title: {e}")
+
+    def handle_user_query(self, query):
+        results = self.vectorstore.similarity_search_with_score(query=query, k=10)
+        # filtered_results = [(doc, score) for doc, score in results if score >= threshold]
+
+        if not results:
+            print("❌ No documents")
+            raise ValueError("관련 문서를 찾을 수 없습니다.")
+        
+        
+        return results

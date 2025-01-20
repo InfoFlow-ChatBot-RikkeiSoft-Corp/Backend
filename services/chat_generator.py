@@ -77,59 +77,110 @@ class ChatGenerator:
         print(f"✅ AI 응답 메시지 저장됨: {content}")  # 디버깅 로그
 
 
+    # def generate_answer(self, conversation_id, question, context):
+    #     """질문과 문맥을 기반으로 LLM을 호출하여 답변 생성"""
+    #     try:
+    #         # context 구조에서 본문과 참조 정보를 분리
+    #         context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
+    #         references = context.get("references", [])
+
+    #         # 대화 히스토리 가져오기
+    #         chat_history_object = ChatService.get_recent_chat_history(conversation_id, 10)
+    #         # JSON 직렬화 가능한 리스트로 변환
+    #         chat_history = [history.to_dict() for history in chat_history_object]
+    #         # 디버깅 로그: 대화 히스토리 출력
+    #         # print(f"📝 대화 히스토리 (conversation_id={conversation_id}):{chat_history}")
+    #         # for i, msg in enumerate(chat_history):
+    #         #     msg_type = "User" if isinstance(msg, HumanMessage) else "AI"
+    #         #     print(f"{i+1}. [{msg_type}] {msg.question} {msg.answer}")
+            
+    #         print(f"확인 {self.prompt_instruction}")
+    #         # 디버깅 로그: `invoke()` 호출 시 전달하는 데이터 출력
+    #         input_data = {
+    #             "instruction": self.prompt_instruction,
+    #             "chat_history": chat_history,
+    #             "question": question,
+    #             "context": context_text
+    #         }
+    #         print(f"📊 `invoke()` Input Data: {chat_history}")
+
+    #         # response = self.rag_with_history.invoke(input_data)
+    #         input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
+    #         response = self.llm.invoke(input_data_str)
+    #         # response = self.rag_with_history.invoke(
+    #         #     {
+    #         #         "instruction": self.prompt_instruction,
+    #         #         "chat_history": chat_history,
+    #         #         "question": question,
+    #         #         "context": context_text
+    #         #     },
+    #         #     config={"configurable": {"session_id": conversation_id}},
+    #         # )
+    #         print(f"📝 최종 응답:\n{response}")
+    #         answer = response["output"] if isinstance(response, dict) else response
+    #         # 사용자 질문 메시지 추가
+    #         self.add_user_message(conversation_id, question)
+    #         # AI 응답 메시지 저장
+    #         self.add_ai_message(conversation_id, answer)
+
+    #         # 참조 문서 정보를 답변에 추가
+    #         if references:
+    #             reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
+    #             answer += f"\n\n참고 자료:\n{reference_texts}"
+
+    #         # AI 응답 메시지 추가
+    #         self.add_ai_message(conversation_id, answer)
+    #         return answer
+
+    #     except Exception as e:
+    #         print(f"❌ Chain 호출 오류: {e}")
+    #         return "답변을 생성하는 중 오류가 발생했습니다."
     def generate_answer(self, conversation_id, question, context):
         """질문과 문맥을 기반으로 LLM을 호출하여 답변 생성"""
         try:
-            # context 구조에서 본문과 참조 정보를 분리
-            context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
-            references = context.get("references", [])
-
+            # context가 리스트인지 확인
+            if isinstance(context, list):
+                # 리스트를 문자열로 결합하여 하나의 텍스트로 만듦
+                context_text = "\n\n".join(context)
+                references = []  # 리스트로 전달된 경우 참조 정보를 별도로 처리하지 않음
+            elif isinstance(context, dict):
+                # context가 딕셔너리인 경우 기존 방식 사용
+                context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
+                references = context.get("references", [])
+            else:
+                # 예상치 못한 형식의 context 처리
+                raise ValueError("`context`는 리스트 또는 딕셔너리여야 합니다.")
+            
             # 대화 히스토리 가져오기
             chat_history_object = ChatService.get_recent_chat_history(conversation_id, 10)
-            # JSON 직렬화 가능한 리스트로 변환
             chat_history = [history.to_dict() for history in chat_history_object]
-            # 디버깅 로그: 대화 히스토리 출력
-            # print(f"📝 대화 히스토리 (conversation_id={conversation_id}):{chat_history}")
-            # for i, msg in enumerate(chat_history):
-            #     msg_type = "User" if isinstance(msg, HumanMessage) else "AI"
-            #     print(f"{i+1}. [{msg_type}] {msg.question} {msg.answer}")
             
-            print(f"확인 {self.prompt_instruction}")
-            # 디버깅 로그: `invoke()` 호출 시 전달하는 데이터 출력
+            # 디버깅 로그
+            print(f"📊 Context Text: {context_text}")
+            print(f"📊 Chat History: {chat_history}")
+
+            # Invoke LLM with prepared data
             input_data = {
                 "instruction": self.prompt_instruction,
                 "chat_history": chat_history,
                 "question": question,
                 "context": context_text
             }
-            print(f"📊 `invoke()` Input Data: {chat_history}")
-
-            # response = self.rag_with_history.invoke(input_data)
             input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
             response = self.llm.invoke(input_data_str)
-            # response = self.rag_with_history.invoke(
-            #     {
-            #         "instruction": self.prompt_instruction,
-            #         "chat_history": chat_history,
-            #         "question": question,
-            #         "context": context_text
-            #     },
-            #     config={"configurable": {"session_id": conversation_id}},
-            # )
-            print(f"📝 최종 응답:\n{response}")
+
+            # 응답 처리
             answer = response["output"] if isinstance(response, dict) else response
+
             # 사용자 질문 메시지 추가
             self.add_user_message(conversation_id, question)
-            # AI 응답 메시지 저장
             self.add_ai_message(conversation_id, answer)
 
-            # 참조 문서 정보를 답변에 추가
+            # 참조 문서가 있는 경우 응답에 추가
             if references:
                 reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
                 answer += f"\n\n참고 자료:\n{reference_texts}"
 
-            # AI 응답 메시지 추가
-            self.add_ai_message(conversation_id, answer)
             return answer
 
         except Exception as e:

@@ -94,7 +94,7 @@ class NewConversation(Resource):
 
 @chat_ns.route('/ask')
 class AskQuestion(Resource):
-    @chat_ns.expect(ask_question_model, chat_headers_parser)  # Request body and header specifications
+    @chat_ns.expect(ask_question_model, chat_headers_parser)
     def post(self):
         """Submit a question and get a response."""
         data = request.get_json()
@@ -102,11 +102,11 @@ class AskQuestion(Resource):
         user_id = request.headers.get("userId")
         conversation_id = request.headers.get("conversationId")
 
-        # Add debugging logs
+        # Debugging logs
         print(f"📨 Received Headers: {request.headers}")
         print(f"📨 user_id: {user_id}, conversation_id: {conversation_id}, question: {question}")
 
-        # Check for required values
+        # Validate input
         if not user_id:
             return {"error": "Missing user_id in headers"}, 400
         if not conversation_id:
@@ -115,13 +115,28 @@ class AskQuestion(Resource):
             return {"error": "❌ Please enter a question!"}, 400
 
         try:
-            context = retriever_manager.retrieve_context(question)
+            # Step 1: Use `handle_user_query` to check for relevant documents
+            results = vector_db_manager.handle_user_query(question)
+            
+            if not results:
+                # No relevant documents found
+                return {"error": "No relevant documents found for this query."}, 404
+
+            # Step 2: Generate a response if relevant documents are found
+            context = [doc.page_content for doc, score in results]
             retriever = vector_db_manager.get_retriever(search_type="similarity", k=5, similarity_threshold=0.7)
             chat_generator = ChatGenerator(retriever=retriever)
+            # Debugging: Log context before generating answer
+            print(f"📝 Context for answer generation: {context}")
+            
             answer = chat_generator.generate_answer(conversation_id, question, context)
+
+            # Step 3: Save the chat and return the answer
             ChatService.save_chat(conversation_id=conversation_id, user_id=user_id, question=question, answer=answer)
             return {"answer": answer}, 200
+
         except Exception as e:
+            # Handle errors gracefully
             return {"error": f"❌ Error occurred: {str(e)}"}, 500
 
 # 1. Retrieve all conversations of a specific user
