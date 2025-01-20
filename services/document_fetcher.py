@@ -8,7 +8,8 @@ from services.docs import Docs
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
-from services.docs import Docs
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 import os
 import docx2txt
 from langchain_core.documents import Document
@@ -47,11 +48,12 @@ class DocumentFetcher:
 
     def load_txt(self, file_path):
         """
-        txt 파일을 로드하여 Document 객체로 변환
+        Load a .txt file and return a list of Document objects.
         """
         print(f"📄 Loading TXT file: {file_path}")
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
+
                 text = file.read()
             
             # 파일명을 id로 사용
@@ -73,7 +75,7 @@ class DocumentFetcher:
         except Exception as e:
             print(f"❌ Error loading TXT file: {str(e)}")
             return []
-
+          
     def load_docx(self, file_path):
         """
         Load a .docx file and return a list of Docs objects.
