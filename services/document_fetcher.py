@@ -50,27 +50,32 @@ class DocumentFetcher:
         """
         Load a .txt file and return a list of Document objects.
         """
+        print(f"📄 Loading TXT file: {file_path}")
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
+
+                text = file.read()
             
-            # 파일 이름에서 title 추출
-            file_name = os.path.basename(file_path)
-            title = os.path.splitext(file_name)[0]
+            # 파일명을 id로 사용
+            filename = os.path.basename(file_path)
             
-            # LangChain Document 객체로 변환
-            return [Document(
-                page_content=content,
+            # Document 객체 생성 시 metadata에 id와 source 추가
+            doc = Document(
+                page_content=text,
                 metadata={
                     "source": file_path,
-                    "title": title,
+                    "title": filename,  # 파일명을 title로 사용
+                    "id": filename,     # 파일명을 id로도 사용
                     "type": "txt"
                 }
-            )]
-        except Exception as e:
-            print(f"❌ Error loading TXT file: {e}")
-            raise RuntimeError(f"Error loading TXT file: {e}")
+            )
+            print(f"✅ Successfully loaded TXT file: {filename}")
+            return [doc]  # Document 객체의 리스트로 반환
 
+        except Exception as e:
+            print(f"❌ Error loading TXT file: {str(e)}")
+            return []
+          
     def load_docx(self, file_path):
         """
         Load a .docx file and return a list of Docs objects.
