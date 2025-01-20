@@ -8,7 +8,8 @@ from services.docs import Docs
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 from bs4 import SoupStrainer
-from services.docs import Docs
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 import os
 import docx2txt
 from langchain_core.documents import Document
@@ -47,12 +48,24 @@ class DocumentFetcher:
 
     def load_txt(self, file_path):
         """
-        Load a .txt file and return a list of Docs objects.
+        Load a .txt file and return a list of Document objects.
         """
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
-            return [Docs.from_file(file_path=file_path, content=content)]  # content가 포함된 Docs 반환
+            
+            # 파일 이름에서 title 추출
+            file_name = os.path.basename(file_path)
+            title = os.path.splitext(file_name)[0]
+            
+            return [Document(
+                page_content=content,
+                metadata={
+                    "source": file_path,
+                    "title": title,
+                    "doc_type": "txt"
+                }
+            )]
         except Exception as e:
             raise RuntimeError(f"Error loading .txt file: {e}")
 
