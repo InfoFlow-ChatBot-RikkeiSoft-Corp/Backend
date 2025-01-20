@@ -81,73 +81,51 @@ class ChatGenerator:
         질문과 문맥을 기반으로 LLM을 호출하여 답변 생성.
         """
         try:
-            # 디버깅을 위한 로그 추가
-            print("\n=== Debug Info ===")
-            print("Received context:", context)
+            # context가 리스트인지 확인
+            if isinstance(context, list):
+                # 리스트를 문자열로 결합하여 하나의 텍스트로 만듦
+                context_text = "\n\n".join(context)
+                references = []  # 리스트로 전달된 경우 참조 정보를 별도로 처리하지 않음
+            elif isinstance(context, dict):
+                # context가 딕셔너리인 경우 기존 방식 사용
+                context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
+                references = context.get("references", [])
+            else:
+                # 예상치 못한 형식의 context 처리
+                raise ValueError("`context`는 리스트 또는 딕셔너리여야 합니다.")
             
-            # 1. 문맥 정보 분리
-            context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
-            references = context.get("references", [])
-
-            # 2. 대화 히스토리 가져오기
+            # 대화 히스토리 가져오기
             chat_history_object = ChatService.get_recent_chat_history(conversation_id, 10)
             chat_history = [history.to_dict() for history in chat_history_object]
+            
+            # 디버깅 로그
+            print(f"📊 Context Text: {context_text}")
+            print(f"📊 Chat History: {chat_history}")
 
-            # 디버깅 로그: 대화 히스토리 확인
-            print(f"📄 Debug: Retrieved Chat History for conversation_id={conversation_id}")
-            for i, msg in enumerate(chat_history):
-                print(f"  - {i + 1}: {msg}")
-
-            # 3. LLM 호출을 위한 데이터 준비
+            # Invoke LLM with prepared data
             input_data = {
                 "instruction": self.prompt_instruction,
                 "chat_history": chat_history,
                 "question": question,
                 "context": context_text,
             }
-
-            # 디버깅 로그: 입력 데이터 확인
             input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
             print(f"📝 Debug: Input Data for LLM:\n{input_data_str}")
 
             # 4. LLM 호출 및 응답 처리
             response = self.llm.invoke(input_data_str)
-            print(f"✅ Debug: LLM Response:\n{response}")
-
-            # 응답 내용 처리
+            # 응답 처리
             answer = response["output"] if isinstance(response, dict) else response
 
-            # 5. 사용자 질문 메시지 추가
+            # 사용자 질문 메시지 추가
             self.add_user_message(conversation_id, question)
-
-            # 6. AI 응답 메시지 저장
             self.add_ai_message(conversation_id, answer)
 
-            # 참고 자료 형식 수정
-            if context.get("references"):
-                reference_texts = []
-                print("\nProcessing references:")
-                for ref in context["references"]:
-                    print("Original reference:", ref)
-                    title = ref.get("title", "").replace("string ", "") if ref.get("title") else ""
-                    url = ref.get("url", "").replace("string ", "") if ref.get("url") else ""
-                    print(f"Cleaned title: {title}")
-                    print(f"Cleaned url: {url}")
-                    
-                    if url and url != "URL 없음":
-                        reference_texts.append(f"- {title} ({url})")
-                    else:
-                        reference_texts.append(f"- {title}")
-                
-                if reference_texts:
-                    print("\nFinal reference texts:", reference_texts)
-                    answer += "\n\n참고 자료:\n" + "\n".join(reference_texts)
-
-            print("\nFinal answer:", answer)
-            print("=== End Debug Info ===\n")
-
+            # 참조 문서가 있는 경우 응답에 추가
+            if references:
+                reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
+                answer += f"\n\n참고 자료:\n{reference_texts}"
             return answer
-
         except Exception as e:
-            print(f"Error generating answer: {e}")
-            raise RuntimeError(f"Error generating answer: {e}")
+            print(f"❌ Chain 호출 오류: {e}")
+            return "답변을 생성하는 중 오류가 발생했습니다."

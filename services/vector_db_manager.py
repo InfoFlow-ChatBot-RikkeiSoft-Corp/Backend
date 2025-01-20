@@ -54,7 +54,7 @@ class VectorDBManager:
     def add_doc_to_db(self, doc):
         try:
             print(f"Processing document: {doc.metadata.get('title', '제목 없음')}")
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=100)
             splits = text_splitter.split_text(doc.content)
 
             if not splits:
@@ -243,3 +243,14 @@ class VectorDBManager:
         except Exception as e:
             print(f"❌ Error during vector data deletion: {e}")
             raise RuntimeError(f"Error deleting document by title: {e}")
+
+    def handle_user_query(self, query):
+        results = self.vectorstore.similarity_search_with_score(query=query, k=10)
+        # filtered_results = [(doc, score) for doc, score in results if score >= threshold]
+
+        if not results:
+            print("❌ No documents")
+            raise ValueError("관련 문서를 찾을 수 없습니다.")
+        
+        
+        return results
