@@ -36,16 +36,11 @@ if USER_AGENT:
 # Register Blueprints
 app.register_blueprint(file_routes, url_prefix='/api/files')
 app.register_blueprint(auth_routes, url_prefix='/api/auth')
-
-# app.register_blueprint(chat_bp, url_prefix='/api/chat')
-# app.register_blueprint(weblink_bp, url_prefix='/api/weblink')
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
-# app.register_blueprint(pdf_bp, url_prefix='/api/pdf')
-# app.register_blueprint(rag_bp, url_prefix='/api/rag')
-# app.register_blueprint(api_bp, url_prefix='/api')
+
 # Register Namespaces
 api.add_namespace(chat_ns, path='/api/chat')
-api.add_namespace(weblink_ns, path='/api/weblink')
+# api.add_namespace(weblink_ns, path='/api/weblink')
 api.add_namespace(pdf_ns, path='/api/pdf')
 api.add_namespace(rag_ns, path='/api/rag')
 api.add_namespace(api_ns, path='/api')

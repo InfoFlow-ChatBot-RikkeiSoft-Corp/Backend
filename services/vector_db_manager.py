@@ -60,33 +60,28 @@ class VectorDBManager:
             if not splits:
                 raise RuntimeError("Text splitting failed. No valid chunks generated.")
 
-            # 'string ' 접두사 제거
-            clean_title = doc.title.replace('string ', '') if isinstance(doc.title, str) else doc.title
-            clean_url = doc.url.replace('string ', '') if isinstance(doc.url, str) else doc.url
-
-            # Document 객체 생성 시 정리된 메타데이터 사용
+            # Document 객체 생성 (메타데이터만 포함)
             documents = [
                 Document(
                     page_content=split,
                     metadata={
-                        "title": clean_title,
-                        "url": clean_url
+                        "title": doc.metadata.get('title', doc.title),
+                        "url": doc.metadata.get('url', doc.url),
+                        "doc_type": "weblink"  # 웹링크 타입 지정
                     }
                 )
                 for split in splits
             ]
 
-            # 기존 벡터스토어에 새 문서 추가
+            # 벡터스토어에 문서 추가
             self.vectorstore.add_documents(documents)
-            
-            # 벡터스토어 저장
             self.vectorstore.save_local(self.vectorstore_path)
-            print(f"✅ Document '{clean_title}' successfully added to vector store")
+            print(f"✅ Document '{doc.metadata.get('title', doc.title)}' successfully added to vector store")
 
             return {
-                "message": f"✅ Document '{clean_title}' successfully added to vector store",
-                "title": clean_title,
-                "url": clean_url
+                "message": f"✅ Document '{doc.metadata.get('title', doc.title)}' successfully added to vector store",
+                "title": doc.metadata.get('title', doc.title),
+                "url": doc.metadata.get('url', doc.url)
             }
 
         except Exception as e:
@@ -106,7 +101,8 @@ class VectorDBManager:
                 splits = text_splitter.split_text(doc.page_content)
                 metadata = {
                     "title": doc.metadata['title'].replace('string ', ''),
-                    "url": doc.metadata.get('url', '').replace('string ', '')
+                    "url": doc.metadata.get('url', '').replace('string ', ''),
+                    "doc_type": "pdf"  # PDF 타입 지정
                 }
                 for i, split in enumerate(splits):
                     unique_id = f"{metadata['title']}_{i}"
