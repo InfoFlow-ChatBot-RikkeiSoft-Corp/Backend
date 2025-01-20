@@ -92,200 +92,160 @@ def upload_content():
         return jsonify({"error": "Username not provided"}), 400
 
     if not is_admin(username):
-        return jsonify({"error": "Access denied. Only admins can upload content."}), 403
+        return jsonify({"error": "Access denied. Only admins can upload files."}), 403
 
-    # Get user object early
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        print(f"❌ User not found for username: {username}")
-        return jsonify({"error": "User not found"}), 404
-
-    print(f"✅ Found user: {user.username} (ID: {user.id})")
-
-    # 파일 업로드 요청 처리
-    if 'file' in request.files:
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "No selected file"}), 400
-
-        if not file:
-            return jsonify({"error": "No file provided"}), 400
-
-        if not is_allowed_file(file.filename):
-            return jsonify({"error": "File type not allowed"}), 400
-
-        file.seek(0, 2)  # Move to end of file
-        file_size = file.tell()
-        file.seek(0)
-
-        if file_size > MAX_FILE_SIZE:
-            return jsonify({"error": "File exceeds maximum size of 25 MB"}), 400
-
-        file_name = file.filename
-        file_extension = file_name.rsplit('.', 1)[1].lower()
-        upload_date = current_time
-
-        try:
-            # Save file metadata to files table
-            file_metadata = FileMetadata(
-                name=file_name,
-                size=file_size,
-                type=file_extension,
-                upload_date=upload_date,
-                user_id=user.id
-            )
-            db.session.add(file_metadata)
-            db.session.commit()
-
-            # Process file and add to vector store
-            temp_path = os.path.join("temp_uploads", secure_filename(file_name))
-            file.save(temp_path)
-
-            docs = []
-            if file_extension == 'docx':
-                docs = document_fetcher.load_docx(temp_path)
-            elif file_extension == 'pdf':
-                docs = document_fetcher.load_pdf(temp_path)
-            elif file_extension == 'txt':
-                docs = document_fetcher.load_txt(temp_path)
-
-            if not docs:
-                db.session.delete(file_metadata)
-                db.session.commit()
-                return jsonify({"error": "Failed to process document"}), 500
-
-            # Add to vector store
-            vector_db_manager.vectorstore.add_documents(docs)
-            vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
-
-            return jsonify({
-                "message": "File uploaded successfully",
-                "metadata": {
-                    "id": file_metadata.id,
-                    "name": file_metadata.name,
-                    "size": file_metadata.size,
-                    "type": file_metadata.type,
-                    "upload_date": file_metadata.upload_date.isoformat()
-                }
-            }), 201
-
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error processing file: {e}")
-            return jsonify({"error": f"An error occurred: {e}"}), 500
-
-    # URL 업로드 요청 처리
-    elif ('title' in request.form and 'url' in request.form) or request.is_json:
-        print("📍 Processing URL upload request")
+    # URL 업로드 처리
+    if request.is_json:
+        data = request.get_json()
+        url = data.get('url', '').strip()
+        title = data.get('title', '').strip()
         
-        if request.is_json:
-            data = request.get_json()
-            title = data.get("title", "").strip()
-            url = data.get("url", "").strip()
-            print(f"📍 Original JSON data - title: {title}, url: {url}")
-            
-            # URL이 객체인 경우 실제 URL 추출
-            if isinstance(url, dict):
-                if 'url' in url:
-                    url = url['url']
-                elif 'title' in url:  # title 필드에 URL이 있는 경우
-                    url = url['title']
-                else:
-                    print("❌ URL object doesn't contain expected fields")
-                    return jsonify({"error": "Invalid URL format"}), 400
-            
-            # title이 객체인 경우 실제 title 추출
-            if isinstance(title, dict):
-                if 'title' in title:
-                    title = title['title']
-                elif 'url' in title:  # url 필드에 title이 있는 경우
-                    title = title['url']
-                else:
-                    print("❌ Title object doesn't contain expected fields")
-                    return jsonify({"error": "Invalid title format"}), 400
-        else:
-            title = request.form.get("title", "").strip()
-            url = request.form.get("url", "").strip()
+        print(f"📍 Processing URL upload request")
+        print(f"📍 Original JSON data - title: {title}, url: {url}")
 
-        print(f"📍 Processed data - title: {title}, url: {url}")
+        if not url:
+            return jsonify({"error": "URL is required"}), 400
 
-        if not title or not url:
-            return jsonify({"error": "Both title and URL are required"}), 400
-
-        # URL 유효성 검사 및 정리
         try:
-            # URL 문자열에서 실제 URL 추출 (따옴표로 둘러싸인 URL 추출)
-            url_match = re.search(r'https?://[^\s\'"]+', url)
-            if url_match:
-                url = url_match.group(0)
-            
-            print(f"📍 Final URL: {url}")
+            # URL에서 기본 제목 추출 (title이 비어있는 경우)
+            if not title:
+                from urllib.parse import urlparse
+                parsed_url = urlparse(url)
+                title = os.path.basename(parsed_url.path) or parsed_url.netloc
+                title = title.replace('-', ' ').replace('_', ' ').title()
 
-            # URL이 실제 URL 형식인지 확인
-            if not url.startswith(('http://', 'https://')):
-                print(f"❌ Invalid URL format: {url}")
-                return jsonify({"error": "Invalid URL format. URL must start with http:// or https://"}), 400
+            print(f"📍 Processed data - title: {title}, url: {url}")
 
-            # title에서 실제 URL이나 제목 추출
-            if isinstance(title, str):
-                # URL이 포함된 경우 URL 추출
-                url_in_title = re.search(r'https?://[^\s\'"]+', title)
-                if url_in_title:
-                    title = url_in_title.group(0)
-                else:
-                    # 객체 형태의 문자열에서 title 또는 url 값 추출
-                    title_match = re.search(r'title\s*:\s*"([^"]+)"', title)
-                    if title_match:
-                        title = title_match.group(1)
-                    else:
-                        # 기본값으로 URL의 마지막 부분 사용
-                        title = url.split('/')[-1]
-
-            print(f"📍 Final title: {title}")
-
-            print(f"📍 Creating weblink metadata for user_id: {user.id}")
-            # Save weblink metadata to weblinks table
-            weblink = WeblinkMetadata(
-                title=title[:500] if len(title) > 500 else title,
-                url=url[:1000] if len(url) > 1000 else url,
-                user_id=user.id,
-                upload_date=current_time,
-                description="Uploaded via web interface"
+            # 웹링크 메타데이터 생성
+            weblink_metadata = WeblinkMetadata(
+                title=title,
+                url=url,
+                user_id=17,  # 임시 user_id
+                description=f"Uploaded from {url}"
             )
-            db.session.add(weblink)
+            
+            db.session.add(weblink_metadata)
             db.session.commit()
-            print(f"✅ Weblink metadata saved with ID: {weblink.id}")
 
-            # Fetch and process the document
-            print(f"📍 Fetching document from URL: {url}")
-            doc = document_fetcher.fetch(title, url)
-            if not doc:
-                print(f"❌ Failed to fetch document from URL: {url}")
-                db.session.delete(weblink)
+            # 문서 가져오기 및 벡터 DB에 추가
+            try:
+                doc = document_fetcher.fetch(title, url)
+                if doc:
+                    langchain_doc = doc.to_langchain_document()
+                    vector_db_manager.vectorstore.add_documents([langchain_doc])
+                    vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
+                    
+                    return jsonify({
+                        "message": "✅ Weblink successfully uploaded",
+                        "metadata": {
+                            "id": weblink_metadata.id,
+                            "title": weblink_metadata.title,
+                            "url": weblink_metadata.url,
+                            "upload_date": weblink_metadata.upload_date.isoformat(),
+                            "user_id": weblink_metadata.user_id,
+                            "description": weblink_metadata.description
+                        }
+                    }), 201
+                else:
+                    db.session.delete(weblink_metadata)
+                    db.session.commit()
+                    return jsonify({"error": "Failed to fetch document content"}), 500
+
+            except Exception as e:
+                db.session.delete(weblink_metadata)
                 db.session.commit()
-                return jsonify({"error": "Failed to fetch document content"}), 400
-
-            # Add to vector store
-            print("📍 Adding document to vector store")
-            vector_details = vector_db_manager.add_doc_to_db(doc)
-            print(f"✅ Document added to vector store: {vector_details}")
-
-            return jsonify({
-                "message": "Weblink uploaded successfully",
-                "metadata": weblink.to_dict(),
-                "vector_details": vector_details
-            }), 200
+                print(f"Error fetching document: {e}")
+                return jsonify({"error": f"Failed to fetch document: {str(e)}"}), 500
 
         except Exception as e:
             db.session.rollback()
-            error_msg = f"Error processing URL: {str(e)}"
-            print(f"❌ {error_msg}")
-            print(f"❌ Exception type: {type(e)}")
-            print(f"❌ Exception details: {str(e)}")
-            return jsonify({"error": error_msg}), 500
+            print(f"Error processing URL: {e}")
+            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+    # 파일 업로드 처리
+    elif 'file' in request.files:
+        # Get user object early
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            print(f"❌ User not found for username: {username}")
+            return jsonify({"error": "User not found"}), 404
+
+        print(f"✅ Found user: {user.username} (ID: {user.id})")
+
+        # 파일 업로드 요청 처리
+        if 'file' in request.files:
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({"error": "No selected file"}), 400
+
+            if not file:
+                return jsonify({"error": "No file provided"}), 400
+
+            if not is_allowed_file(file.filename):
+                return jsonify({"error": "File type not allowed"}), 400
+
+            file.seek(0, 2)  # Move to end of file
+            file_size = file.tell()
+            file.seek(0)
+
+            if file_size > MAX_FILE_SIZE:
+                return jsonify({"error": "File exceeds maximum size of 25 MB"}), 400
+
+            file_name = file.filename
+            file_extension = file_name.rsplit('.', 1)[1].lower()
+            upload_date = current_time
+
+            try:
+                # Save file metadata to files table
+                file_metadata = FileMetadata(
+                    name=file_name,
+                    size=file_size,
+                    type=file_extension,
+                    upload_date=upload_date,
+                    user_id=user.id
+                )
+                db.session.add(file_metadata)
+                db.session.commit()
+
+                # Process file and add to vector store
+                temp_path = os.path.join("temp_uploads", secure_filename(file_name))
+                file.save(temp_path)
+
+                docs = []
+                if file_extension == 'docx':
+                    docs = document_fetcher.load_docx(temp_path)
+                elif file_extension == 'pdf':
+                    docs = document_fetcher.load_pdf(temp_path)
+                elif file_extension == 'txt':
+                    docs = document_fetcher.load_txt(temp_path)
+
+                if not docs:
+                    db.session.delete(file_metadata)
+                    db.session.commit()
+                    return jsonify({"error": "Failed to process document"}), 500
+
+                # Add to vector store
+                vector_db_manager.vectorstore.add_documents(docs)
+                vector_db_manager.vectorstore.save_local(vector_db_manager.vectorstore_path)
+
+                return jsonify({
+                    "message": "File uploaded successfully",
+                    "metadata": {
+                        "id": file_metadata.id,
+                        "name": file_metadata.name,
+                        "size": file_metadata.size,
+                        "type": file_metadata.type,
+                        "upload_date": file_metadata.upload_date.isoformat()
+                    }
+                }), 201
+
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error processing file: {e}")
+                return jsonify({"error": f"An error occurred: {e}"}), 500
 
     else:
-        return jsonify({"error": "Invalid request. Provide a file or title and URL."}), 400
+        return jsonify({"error": "Invalid request. Either file or URL required"}), 400
 
 
 @file_routes.route('/list_files', methods=['GET'])
@@ -376,40 +336,41 @@ def delete_file(title):
         return jsonify({"error": "Access denied. Only admins can delete files."}), 403
  
     try:
-        # 파일 메타데이터 검색 및 삭제
-        file_metadata = FileMetadata.query.filter_by(name=decoded_title).first()
-        if file_metadata:
-            db.session.delete(file_metadata)
-            print(f"✅ File metadata deleted: {decoded_title}")
-        
-        # 웹링크 메타데이터 검색 및 삭제
-        weblink_metadata = WeblinkMetadata.query.filter_by(title=decoded_title).first()
+        # URL인 경우 WeblinkMetadata에서 검색
+        weblink_metadata = WeblinkMetadata.query.filter_by(url=decoded_title).first()
         if weblink_metadata:
+            title_for_vector = weblink_metadata.title  # 벡터 DB 삭제를 위한 title
             db.session.delete(weblink_metadata)
             print(f"✅ Weblink metadata deleted: {decoded_title}")
-
-        if not file_metadata and not weblink_metadata:
-            print(f"Document with title '{decoded_title}' not found in database.")
-            return jsonify({"error": f"Document with title '{decoded_title}' not found"}), 404
+        else:
+            # 파일인 경우 FileMetadata에서 검색
+            file_metadata = FileMetadata.query.filter_by(name=decoded_title).first()
+            if file_metadata:
+                title_for_vector = os.path.splitext(file_metadata.name)[0]  # 확장자 제거
+                db.session.delete(file_metadata)
+                print(f"✅ File metadata deleted: {decoded_title}")
+            else:
+                print(f"Document with title/url '{decoded_title}' not found in database.")
+                return jsonify({"error": f"Document with title/url '{decoded_title}' not found"}), 404
 
         db.session.commit()
 
         # 벡터 데이터 삭제
         try:
-            print(f"Attempting to delete vector data for title: {decoded_title}")
-            result = vector_db_manager.delete_doc_by_title(decoded_title)
+            print(f"Attempting to delete vector data for title: {title_for_vector}")
+            result = vector_db_manager.delete_doc_by_title(title_for_vector)
             if result.get("message", "").startswith("✅"):
-                print(f"Vector data for title '{decoded_title}' deleted successfully.")
+                print(f"Vector data deleted successfully.")
                 return jsonify({
-                    "message": f"Document '{decoded_title}' and its vector data deleted successfully"
+                    "message": f"Document and its vector data deleted successfully"
                 }), 200
             else:
-                print(f"Vector data for title '{decoded_title}' could not be deleted. Reason: {result.get('message')}")
+                print(f"Vector data could not be deleted. Reason: {result.get('message')}")
                 return jsonify({
                     "message": f"Metadata deleted, but vector data could not be deleted. Reason: {result.get('message')}"
                 }), 200
         except Exception as vector_error:
-            print(f"Warning: Failed to delete vector data for title '{decoded_title}'. Error: {vector_error}")
+            print(f"Warning: Failed to delete vector data. Error: {vector_error}")
             return jsonify({
                 "message": "Metadata deleted, but vector data deletion failed.",
                 "error": str(vector_error)

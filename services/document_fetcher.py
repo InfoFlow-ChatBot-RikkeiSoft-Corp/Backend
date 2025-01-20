@@ -57,16 +57,18 @@ class DocumentFetcher:
             file_name = os.path.basename(file_path)
             title = os.path.splitext(file_name)[0]
             
+            # LangChain Document 객체로 변환
             return [Document(
                 page_content=content,
                 metadata={
                     "source": file_path,
                     "title": title,
-                    "doc_type": "txt"
+                    "type": "txt"
                 }
             )]
         except Exception as e:
-            raise RuntimeError(f"Error loading .txt file: {e}")
+            print(f"❌ Error loading TXT file: {e}")
+            raise RuntimeError(f"Error loading TXT file: {e}")
 
     def load_docx(self, file_path):
         """
