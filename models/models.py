@@ -40,6 +40,24 @@ class FileMetadata(db.Model):
     upload_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
+class WeblinkMetadata(db.Model):
+    __tablename__ = 'weblinks'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.Text, nullable=False)
+    url = db.Column(db.Text, nullable=False)
+    upload_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'url': self.url,
+            'upload_date': self.upload_date.isoformat(),
+            'user_id': self.user_id,
+            'description': self.description
+        }
 
 class Log(db.Model):
     __tablename__ = 'logs'

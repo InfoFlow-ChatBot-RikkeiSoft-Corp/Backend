@@ -9,6 +9,9 @@ from services.chat_generator import ChatGenerator
 from services.chat_service import ChatService
 from services.RAG_manager import RAGManager
 import os
+from models.models import WeblinkMetadata, FileMetadata
+from flask_sqlalchemy import SQLAlchemy
+from models.models import db
 
 # 환경 변수 로드
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -201,21 +204,37 @@ class ConversationChatHistory(Resource):
 # ======= Weblink Namespace =======
 @weblink_ns.route('/upload')
 class WeblinkUpload(Resource):
-    @weblink_ns.expect(weblink_model)  # Add request body and headers
+    @weblink_ns.expect(weblink_model)
     def post(self):
         """Upload a weblink document."""
-        data = request.get_json()  # Retrieve JSON data
+        data = request.get_json()
         title = data.get("title")
         url = data.get("url")
+        user_id = request.headers.get("userId")
 
         if not title or not url:
             return {"error": "❌ Please enter both the title and the link!"}, 400
 
         try:
+            # WeblinkMetadata 사용
+            weblink = WeblinkMetadata(
+                title=title,
+                url=url,
+                user_id=user_id
+            )
+            db.session.add(weblink)
+            db.session.commit()
+
             doc = document_fetcher.fetch(title, url)
             vector_details = vector_db_manager.add_doc_to_db(doc)
-            return {"title": title, "vector_details": vector_details}, 200
+            
+            return {
+                "message": "✅ Weblink successfully uploaded",
+                "metadata": weblink.to_dict(),
+                "vector_details": vector_details
+            }, 200
         except Exception as e:
+            db.session.rollback()
             return {"error": f"❌ Error occurred: {str(e)}"}, 500
 
 
@@ -223,25 +242,55 @@ class WeblinkUpload(Resource):
 @pdf_ns.route('/upload')
 class PDFUpload(Resource):
     def post(self):
-        """Upload a PDF document and build vector DB."""
-        if "file" not in request.files:
-            return jsonify({"error": "❌ PDF 파일을 업로드해주세요!"}), 400
+        """Upload a PDF file to vector DB."""
+        if 'file' not in request.files:
+            return jsonify({"error": "❌ No file uploaded"}), 400
 
-        file = request.files["file"]
-        if file.filename == "":
-            return jsonify({"error": "❌ 파일 이름이 비어 있습니다."}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "❌ No file selected"}), 400
 
-        file_path = os.path.join("temp_uploads", secure_filename(file.filename))
-        file.save(file_path)
+        if not file.filename.endswith('.pdf'):
+            return jsonify({"error": "❌ Only PDF files are allowed"}), 400
 
+        # 파일 메타데이터를 files 테이블에 저장
         try:
+            file_metadata = FileMetadata(
+                name=file.filename,
+                size=len(file.read()),
+                type='pdf',
+                user_id=request.headers.get('userId', 1)  # 기본값 1 설정
+            )
+            file.seek(0)  # 파일 포인터를 다시 처음으로
+            
+            db.session.add(file_metadata)
+            db.session.commit()
+
+            # 벡터 DB 처리
+            file_path = os.path.join("temp_uploads", secure_filename(file.filename))
+            file.save(file_path)
+
             docs = document_fetcher.load_pdf(file_path)
             if docs:
                 vector_details = vector_db_manager.add_pdf_to_db(docs)
-                return jsonify({"message": "✅ PDF 문서가 성공적으로 처리되었습니다.", "vector_info": vector_details}), 200
+                return jsonify({
+                    "message": "✅ PDF 문서가 성공적으로 처리되었습니다.", 
+                    "metadata": {
+                        "id": file_metadata.id,
+                        "name": file_metadata.name,
+                        "size": file_metadata.size,
+                        "type": file_metadata.type,
+                        "upload_date": file_metadata.upload_date.isoformat()
+                    },
+                    "vector_info": vector_details
+                }), 200
             else:
+                db.session.delete(file_metadata)
+                db.session.commit()
                 return jsonify({"error": "❌ PDF에서 텍스트를 추출할 수 없습니다."}), 500
+
         except Exception as e:
+            db.session.rollback()  # 에러 발생 시 트랜잭션 롤백
             return jsonify({"error": f"❌ Error processing PDF: {str(e)}"}), 500
 
 
