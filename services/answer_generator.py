@@ -33,13 +33,28 @@ class AnswerGenerator:
 
             # 응답 처리
             if hasattr(response, 'content'):  # 응답이 객체 형태일 때
-                return response.content
+                answer = response.content
             elif isinstance(response, str):  # 응답이 문자열일 때
-                return response
+                answer = response
             else:
                 raise ValueError("Unexpected response format from LLM.")
+
+            # 참조 문서 정보를 답변에 추가
+            references = [
+                {"title": doc.metadata.get("title", "제목 없음"), "url": doc.metadata.get("url", "URL 없음")}
+                for doc in documents
+            ]
+            if references:
+                reference_texts = "\n".join([
+                    f"- {ref['title']}" if ref['url'] == "URL 없음" else f"- {ref['title']} ({ref['url']})"
+                    for ref in references
+                ])
+                answer += f"\n\n참고 자료:\n{reference_texts}"
+
+            # 디버깅 로그
+            print(f"✅ 최종 응답: {answer}")
+            return answer
+
         except Exception as e:
             print(f"❌ Error generating answer: {e}")  # 디버깅 로그 추가
             raise RuntimeError(f"Error generating answer: {e}")
-
-

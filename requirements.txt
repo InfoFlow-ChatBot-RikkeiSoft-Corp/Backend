@@ -19,3 +19,4 @@ langchain_openai
 pytesseract
 pdf2image
 flask_restx
+unstrutured

@@ -59,68 +59,56 @@ class VectorDBManager:
 
             if not splits:
                 raise RuntimeError("Text splitting failed. No valid chunks generated.")
-            
-            # Document 객체 생성 (본문과 메타데이터 포함)
+
+            # Document 객체 생성 (메타데이터만 포함)
             documents = [
-                Document(page_content=split, metadata={"title": doc.title, "url": doc.url})
+                Document(
+                    page_content=split,
+                    metadata={
+                        "title": doc.metadata.get('title', doc.title),
+                        "url": doc.metadata.get('url', doc.url),
+                        "doc_type": "weblink"  # 웹링크 타입 지정
+                    }
+                )
                 for split in splits
             ]
 
-            # 기존 벡터스토어에 새 문서 추가
+            # 벡터스토어에 문서 추가
             self.vectorstore.add_documents(documents)
-            print(f"✅ '{doc.title}' 문서가 벡터 DB에 성공적으로 추가되었습니다.")
-
-            # 벡터스토어 저장
             self.vectorstore.save_local(self.vectorstore_path)
-            self.vectorstore = FAISS.load_local(
-                    self.vectorstore_path,
-                    self.embedding_model,
-                    allow_dangerous_deserialization=True  # 보안 설정 추가
-                )
-            print(f"✅ '{doc.title}' 문서가 벡터 DB에 성공적으로 추가 및 로드되었습니다.")
+            print(f"✅ Document '{doc.metadata.get('title', doc.title)}' successfully added to vector store")
 
-            # 제출된 문서 저장
-            self.submitted_docs.append(doc)
+            return {
+                "message": f"✅ Document '{doc.metadata.get('title', doc.title)}' successfully added to vector store",
+                "title": doc.metadata.get('title', doc.title),
+                "url": doc.metadata.get('url', doc.url)
+            }
 
-            # 상위 3개 청크 정보
-            vector_details = []
-            for i in range(min(3, len(documents))):
-                vector_details.append({
-                    "vector_index": i + 1,
-                    "embedding_excerpt": self.vectorstore.index.reconstruct(i)[:5],  # 임베딩 일부 출력
-                    "content_excerpt": documents[i].page_content[:300],  # 청크 본문 일부 출력
-                    "title": documents[i].metadata["title"],  # 문서 제목 추가
-                    "url": documents[i].metadata["url"],  # 문서 URL 추가
-                })
-
-            print(vector_details)
-
-
-            # Save the vectorstore locally
-            # self.vectorstore.save_local(self.vectorstore_path)
-            # print(f"Vectorstore saved at {self.vectorstore_path}.")
         except Exception as e:
-            raise RuntimeError(f"Error processing document: {e}")
+            print(f"❌ Error adding document to vector store: {e}")
+            raise RuntimeError(f"Error adding document to vector store: {e}")
+
     def add_pdf_to_db(self, docs):
         """여러 문서를 벡터 DB에 추가"""
         try:
             if not isinstance(docs, list):
-                docs = [docs]  # 리스트로 변환
+                docs = [docs]
 
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
             documents = []
 
             for doc in docs:
-                splits = text_splitter.split_text(doc.page_content)  # doc.page_content 사용
+                splits = text_splitter.split_text(doc.page_content)
+                metadata = {
+                    "title": doc.metadata['title'].replace('string ', ''),
+                    "url": doc.metadata.get('url', '').replace('string ', ''),
+                    "doc_type": "pdf"  # PDF 타입 지정
+                }
                 for i, split in enumerate(splits):
-                    unique_id = f"{doc.metadata['title']}_{i}"  # title을 기반으로 고유 ID 생성
+                    unique_id = f"{metadata['title']}_{i}"
                     documents.append(
-                        Document(page_content=split, metadata=doc.metadata, id=unique_id)
+                        Document(page_content=split, metadata=metadata, id=unique_id)
                     )
-                # for split in splits:
-                #     documents.append(
-                #         Document(page_content=split, metadata=doc.metadata)  # page_content 사용
-                #     )
 
             # 벡터스토어에 문서 추가
             self.vectorstore.add_documents(documents)
@@ -137,21 +125,45 @@ class VectorDBManager:
         for doc in documents:
             self.add_doc_to_db(doc) 
 
-    def search(self, query, k, search_type, similarity_threshold):
-        """
-        Simple search in vector store.
-        """
-        if not self.vectorstore:
-            raise ValueError("Vectorstore is not initialized. Add documents first.")
+    def search(self, query, k=3, search_type="similarity", similarity_threshold=0.7):
+        """벡터 DB에서 문서 검색"""
+        try:
+            if search_type == "similarity":
+                docs = self.vectorstore.similarity_search(query, k=k)
+            else:
+                docs = self.vectorstore.max_marginal_relevance_search(query, k=k)
 
-        retriever = self.get_retriever(search_type, k, similarity_threshold)
-        docs = retriever.invoke(query)
+            # 검색된 문서의 메타데이터에서 'string ' 접두사 제거
+            cleaned_docs = []
+            for doc in docs:
+                # 메타데이터 딕셔너리 복사
+                cleaned_metadata = doc.metadata.copy()
+                
+                # title과 url 정리
+                if 'title' in cleaned_metadata:
+                    if cleaned_metadata['title'] == 'string':  # title이 'string'인 경우 URL에서 제목 추출
+                        cleaned_metadata['title'] = cleaned_metadata.get('url', '').split('/')[-2].replace('-', ' ').title()
+                    else:
+                        cleaned_metadata['title'] = cleaned_metadata['title'].replace('string ', '')
+                
+                if 'url' in cleaned_metadata:
+                    cleaned_metadata['url'] = cleaned_metadata['url'].replace('string ', '')
 
-        for doc in docs:
-            print(f"Document Content: {doc.page_content[:200]}")
-            print(f"Document Metadata: {doc.metadata}")
-        
-        return docs
+                # 새로운 Document 객체 생성
+                cleaned_doc = Document(
+                    page_content=doc.page_content,
+                    metadata=cleaned_metadata
+                )
+                cleaned_docs.append(cleaned_doc)
+
+            print("Debug - Cleaned documents metadata:")
+            for doc in cleaned_docs:
+                print(f"Title: {doc.metadata.get('title')}, URL: {doc.metadata.get('url')}")
+
+            return cleaned_docs
+        except Exception as e:
+            print(f"Error during vector search: {e}")
+            return []
 
     def get_retriever(self, search_type, k, similarity_threshold):
         """Retrieve documents from the vectorstore."""
@@ -202,29 +214,34 @@ class VectorDBManager:
     def delete_doc_by_title(self, title: str):
         """title을 기반으로 문서를 삭제"""
         try:
-            # 모든 문서 출력
-            print("📄 현재 저장된 문서 목록:")
+            print(f"📄 현재 저장된 문서 목록:")
             for doc_id, doc in self.vectorstore.docstore._dict.items():
                 print(f"ID: {doc_id}, Title: {doc.metadata.get('title')}, Metadata: {doc.metadata}")
+
+            # 파일 확장자 제거
+            title_without_extension = os.path.splitext(title)[0].strip().lower()
 
             # docstore에서 title로 해당 ID 가져오기
             doc_ids_to_delete = [
                 doc_id for doc_id, doc in self.vectorstore.docstore._dict.items()
-                if doc.metadata.get("title") == title
+                if doc.metadata.get("title", "").strip().lower() == title_without_extension
             ]
+            print(f"📝 삭제할 문서 ID 리스트: {doc_ids_to_delete}")
 
             if not doc_ids_to_delete:
-                return {"message": f"❌ '{title}' 제목의 문서를 찾을 수 없습니다."}
-
-            print(f"📝 삭제할 문서 ID 리스트: {doc_ids_to_delete}")
+                all_titles = [doc.metadata.get("title", "제목 없음") for doc in self.vectorstore.docstore._dict.values()]
+                print(f"Available titles in vectorstore: {all_titles}")
+                return {"message": f"❌ '{title}' 제목의 문서를 찾을 수 없습니다. 저장된 제목들: {all_titles}"}
 
             # 삭제 수행
             self.vectorstore.delete(doc_ids_to_delete)
             self.vectorstore.save_local(self.vectorstore_path)
+            print(f"✅ Vectorstore successfully saved after deletion.")
 
             return {"message": f"✅ '{title}' 제목의 문서가 성공적으로 삭제되었습니다."}
 
         except Exception as e:
+            print(f"❌ Error during vector data deletion: {e}")
             raise RuntimeError(f"Error deleting document by title: {e}")
 
     def handle_user_query(self, query):
