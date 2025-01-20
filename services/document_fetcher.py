@@ -12,6 +12,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 import os
 import docx2txt
+from langchain_core.documents import Document
 
 class DocumentFetcher:
     def __init__(self):
@@ -112,19 +113,10 @@ class DocumentFetcher:
             else:
                 raise ValueError("No content extracted from DOCX file")
 
-
-            return [
-                Docs.from_file(
-                    file_path=file_path,
-                    content=doc.page_content if hasattr(doc, 'page_content') else "No content available."
-                )
-                for doc in docs
-            ]
         except Exception as e:
             print(f"❌ Error loading DOCX file: {e}")
             raise RuntimeError(f"Error loading DOCX file: {e}")
 
-        
     def extract_text_with_ocr(self, file_path):
         """
         Perform OCR on an image-based PDF and return extracted text.

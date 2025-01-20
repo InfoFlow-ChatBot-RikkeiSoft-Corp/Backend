@@ -219,10 +219,58 @@ def upload_content():
                 elif file_extension == 'txt':
                     docs = document_fetcher.load_txt(temp_path)
 
-                if not docs:
-                    db.session.delete(file_metadata)
-                    db.session.commit()
-                    return jsonify({"error": "Failed to process document"}), 500
+        try:
+            # URL 문자열에서 실제 URL 추출 (따옴표로 둘러싸인 URL 추출)
+            url_match = re.search(r'https?://[^\s\'"]+', url)
+            if url_match:
+                url = url_match.group(0)
+            
+            print(f"📍 Final URL: {url}")
+
+            # URL이 실제 URL 형식인지 확인
+            if not url.startswith(('http://', 'https://')):
+                print(f"❌ Invalid URL format: {url}")
+                return jsonify({"error": "Invalid URL format. URL must start with http:// or https://"}), 400
+
+            # title에서 실제 URL이나 제목 추출
+            if isinstance(title, str):
+                # URL이 포함된 경우 URL 추출
+                url_in_title = re.search(r'https?://[^\s\'"]+', title)
+                if url_in_title:
+                    title = url_in_title.group(0)
+                else:
+                    # 객체 형태의 문자열에서 title 또는 url 값 추출
+                    title_match = re.search(r'title\s*:\s*"([^"]+)"', title)
+                    if title_match:
+                        title = title_match.group(1)
+                    else:
+                        # 기본값으로 URL의 마지막 부분 사용
+                        title = url.split('/')[-1]
+
+            print(f"📍 Final title: {title}")
+
+            print(f"📍 Creating weblink metadata for user_id: {user.id}")
+            # Save weblink metadata to weblinks table
+            weblink = WeblinkMetadata(
+                title=title[:500] if len(title) > 500 else title,
+                url=url[:1000] if len(url) > 1000 else url,
+                user_id=user.id,
+                upload_date=current_time,
+                description="Uploaded via web interface"
+            )
+            db.session.add(weblink)
+            db.session.commit()
+            print(f"✅ Weblink metadata saved with ID: {weblink.id}")
+
+            # Fetch and process the document
+            print(f"📍 Fetching document from URL: {url}")
+            doc = document_fetcher.fetch(title, url)
+            if not doc:
+                print(f"❌ Failed to fetch document from URL: {url}")
+                db.session.delete(weblink)
+                db.session.delete(file_metadata)
+                db.session.commit()
+                return jsonify({"error": "Failed to fetch document content"}), 400
 
                 # Add to vector store
                 vector_db_manager.vectorstore.add_documents(docs)
@@ -315,8 +363,6 @@ def list_files():
     except Exception as e:
         print(f"Error while listing files: {e}")
         return jsonify({"error": f"Database error: {str(e)}"}), 500
-
-
 
 @file_routes.route('/delete/<path:title>', methods=['DELETE'])
 def delete_file(title):
