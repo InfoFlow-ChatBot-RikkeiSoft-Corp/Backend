@@ -220,6 +220,7 @@ class ConversationChatHistory(Resource):
 @weblink_ns.route('/upload')
 class WeblinkUpload(Resource):
     @weblink_ns.expect(weblink_model)
+    @weblink_ns.doc(params={'userId': 'User ID included in headers'})
     def post(self):
         """Upload a weblink document."""
         data = request.get_json()
