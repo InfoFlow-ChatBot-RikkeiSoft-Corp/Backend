@@ -1,16 +1,15 @@
 from flask import Blueprint, request, jsonify, redirect, url_for
-from models.models import db, User, Log, Token, Conversation
+from models import db, User, Log, Token, Conversation
 import jwt
 import re
 import os
 import uuid
 from datetime import datetime, timedelta
 from functools import wraps
-
+from sqlalchemy import text
 import requests as py_requests
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-
 from dotenv import load_dotenv
 from pytz import timezone
 
@@ -104,10 +103,27 @@ def login():
     username = data['username']
     password = data['password']
 
+    # 1) Authenticate user from your "users" table
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return jsonify({'error': 'Invalid credentials'}), 401
 
+    # 2) Now check admin status from "company_employee" by matching email
+    try:
+        # Raw SQL query to fetch the role from your "company_employee" table
+        result = db.session.execute(
+            text("SELECT role FROM company_employee WHERE email = :email"),
+            {"email": username}
+        )
+        row = result.fetchone()  # returns None if no match
+        role = row[0] if row else None
+        
+        # Admin if "role" == "admin"
+        is_admin = (role == 'admin')
+    except Exception as e:
+        return jsonify({'error': f"Admin check failed: {str(e)}"}), 500
+
+    # 3) Generate your JWT token & log the user in as before
     now = datetime.utcnow()
     jwt_token = jwt.encode({
         'user_id': user.id,
@@ -123,10 +139,18 @@ def login():
         db.session.add(log_entry)
         db.session.commit()
 
-        return jsonify({'message': 'Login successful', 'token': jwt_token}), 200
+        # 4) Return is_admin in your JSON response
+        return jsonify({
+            'message': 'Login successful',
+            'token': jwt_token,
+            'is_admin': is_admin
+        }), 200
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f"Failed to log login event: {str(e)}"}), 500
+
+
 
 @auth_routes.route('/logout', methods=['POST'])
 @token_required
@@ -145,6 +169,7 @@ def logout(current_user):
         return jsonify({'error': f"Failed to log logout event: {str(e)}"}), 500
 
     return jsonify({'message': 'Logout successful'}), 200
+
 
 ###############################################################################
 # GOOGLE LOGIN
