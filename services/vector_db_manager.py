@@ -245,12 +245,19 @@ class VectorDBManager:
             raise RuntimeError(f"Error deleting document by title: {e}")
 
     def handle_user_query(self, query):
+        # Perform similarity search
         results = self.vectorstore.similarity_search_with_score(query=query, k=10)
-        # filtered_results = [(doc, score) for doc, score in results if score >= threshold]
-
+        
         if not results:
             print("❌ No documents")
             raise ValueError("관련 문서를 찾을 수 없습니다.")
         
+        print(f"🌷 {results}")
         
-        return results
+        # Find the document with the highest score (lowest score value)
+        highest_score_doc = min(results, key=lambda x: x[1])  # Lower score is better in similarity search
+        highest_score_url = highest_score_doc[0].metadata.get('url', 'URL not available')
+        
+        print(f"Highest score URL: {highest_score_url}")
+        
+        return results, highest_score_url

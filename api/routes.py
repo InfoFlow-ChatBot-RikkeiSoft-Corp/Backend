@@ -119,7 +119,7 @@ class AskQuestion(Resource):
 
         try:
             # Step 1: Use `handle_user_query` to check for relevant documents
-            results = vector_db_manager.handle_user_query(question)
+            results, highest_score_url = vector_db_manager.handle_user_query(question)
             
             if not results:
                 # No relevant documents found
@@ -132,7 +132,7 @@ class AskQuestion(Resource):
             # Debugging: Log context before generating answer
             print(f"📝 Context for answer generation: {context}")
             
-            answer = chat_generator.generate_answer(conversation_id, question, context)
+            answer = chat_generator.generate_answer(conversation_id, question, context, highest_score_url)
 
             # Step 3: Save the chat and return the answer
             ChatService.save_chat(conversation_id=conversation_id, user_id=user_id, question=question, answer=answer)
