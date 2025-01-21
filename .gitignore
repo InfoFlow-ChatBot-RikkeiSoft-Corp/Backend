@@ -12,4 +12,3 @@ embedding-test/
 faiss_db/
 __pycache__/
 temp_uploads/
-faiss_db

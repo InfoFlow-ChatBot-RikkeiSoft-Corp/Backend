@@ -81,46 +81,35 @@ class DocumentFetcher:
         Load a .docx file and return a list of Docs objects.
         """
         try:
-            # 먼저 UnstructuredWordDocumentLoader 시도
-            try:
-                loader = UnstructuredWordDocumentLoader(file_path)
-                documents = loader.load()
-                if documents:
-                    print("✅ Successfully loaded DOCX using UnstructuredWordDocumentLoader")
-                    
-                    # 파일 이름에서 title 추출
-                    file_name = os.path.basename(file_path)
-                    title = os.path.splitext(file_name)[0]
-                    
-                    return [
-                        Document(
-                            page_content=doc.page_content,
-                            metadata={"source": file_path, "title": title}
-                        )
-                        for doc in documents
-                    ]
-            except Exception as e:
-                print(f"⚠️ UnstructuredWordDocumentLoader failed: {e}, trying docx2txt...")
-
-            # UnstructuredWordDocumentLoader가 실패하면 docx2txt 사용
+            print(f"📄 Start DOCX file loading: {file_path}")
+            
+            # docx2txt를 사용하여 텍스트 추출
             content = docx2txt.process(file_path)
-            if content.strip():
-                print("✅ Successfully loaded DOCX using docx2txt")
-                
-                # 파일 이름에서 title 추출
-                file_name = os.path.basename(file_path)
-                title = os.path.splitext(file_name)[0]
-                
-                return [Document(
-                    page_content=content,
-                    metadata={"source": file_path, "title": title}
-                )]
-            else:
-                raise ValueError("No content extracted from DOCX file")
+            
+            if not content.strip():
+                print("❌ Fail to extract information from DOCX.")
+                return []
+            
+            # 파일 이름에서 title 추출
+            file_name = os.path.basename(file_path)
+            title = os.path.splitext(file_name)[0]
+            
+            # Document 객체 생성
+            doc = Document(
+                page_content=content,
+                metadata={
+                    "source": file_path,
+                    "title": title,
+                    "type": "docx"
+                }
+            )
+            
+            print(f"✅ Successfully loaded DOCX using docx2txt: {title}")
+            return [doc]
 
         except Exception as e:
-            print(f"❌ Error loading DOCX file: {e}")
-            raise RuntimeError(f"Error loading DOCX file: {e}")
+            print(f"❌ Error loading DOCX file: {str(e)}")
+            raise RuntimeError(f"Error loading DOCX file: {str(e)}")
 
     def extract_text_with_ocr(self, file_path):
         """
