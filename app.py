@@ -1,9 +1,9 @@
 from flask import Flask, jsonify
 from models.models import db
-from api.file_routes import file_routes
+from api.file_routes import file_ns
 from api.auth_routes import auth_routes
 from api.routes import chat_ns, weblink_ns, pdf_ns, rag_ns, api_ns
-from api.admin_routes import admin_bp
+from api.admin_routes import admin_ns
 from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
@@ -34,17 +34,16 @@ if USER_AGENT:
 
 
 # Register Blueprints
-app.register_blueprint(file_routes, url_prefix='/api/files')
 app.register_blueprint(auth_routes, url_prefix='/api/auth')
-app.register_blueprint(admin_bp, url_prefix='/api/admin')
 
 # Register Namespaces
 api.add_namespace(chat_ns, path='/api/chat')
-# api.add_namespace(weblink_ns, path='/api/weblink')
+api.add_namespace(weblink_ns, path='/api/weblink')
 api.add_namespace(pdf_ns, path='/api/pdf')
 api.add_namespace(rag_ns, path='/api/rag')
 api.add_namespace(api_ns, path='/api')
-
+api.add_namespace(file_ns, path='/api/files')
+api.add_namespace(admin_ns, path='/api/admin')
 # Access environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
