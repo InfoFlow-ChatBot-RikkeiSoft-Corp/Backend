@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, redirect, url_for
-from models import db, User, Log, Token, Conversation
+from models.models import db, User, Log, Token, Conversation
 import jwt
 import re
 import os
