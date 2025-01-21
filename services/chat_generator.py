@@ -182,7 +182,7 @@ class ChatGenerator:
             # 특정 조건에 따라 highest_score_url 추가
             default_response = "I’m sorry, I couldn’t find that information in the documents I have. I recommend reaching out to the support team for further assistance."
             if answer != default_response:
-                answer += f"\n\nFor more details, please check this URL: {highest_score_url}"
+                answer += f"\n\nFor more details, please check this URL/Source: {highest_score_url}"
 
             return answer
         except Exception as e:

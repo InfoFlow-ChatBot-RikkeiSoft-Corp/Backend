@@ -247,17 +247,18 @@ class VectorDBManager:
     def handle_user_query(self, query):
         # Perform similarity search
         results = self.vectorstore.similarity_search_with_score(query=query, k=10)
-        
         if not results:
             print("❌ No documents")
             raise ValueError("관련 문서를 찾을 수 없습니다.")
-        
         print(f"🌷 {results}")
-        
         # Find the document with the highest score (lowest score value)
         highest_score_doc = min(results, key=lambda x: x[1])  # Lower score is better in similarity search
-        highest_score_url = highest_score_doc[0].metadata.get('url', 'URL not available')
-        
-        print(f"Highest score URL: {highest_score_url}")
-        
-        return results, highest_score_url
+    
+        # Try to get 'url' or fallback to 'source', or set 'Not available' if neither exists
+        highest_score_url_or_source = (
+            highest_score_doc[0].metadata.get('url') or
+            highest_score_doc[0].metadata.get('source') or
+            'Not available'
+        )
+        print(f"Highest score URL/Source: {highest_score_url_or_source}")
+        return results, highest_score_url_or_source
