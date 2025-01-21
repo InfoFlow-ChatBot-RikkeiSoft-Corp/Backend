@@ -22,9 +22,11 @@ new_prompt_model = admin_ns.model('NewLLMPrompt', {
 })
 
 update_prompt_model = admin_ns.model('UpdateLLMPrompt', {
+    'prompt_name': fields.String(description='Updated name of the prompt'),
     'prompt_text': fields.String(description='Updated text of the prompt'),
     'updated_by': fields.String(description='Username of the updater')
 })
+
 
 tz = timezone("Asia/Ho_Chi_Minh")  # Replace with your desired time zone
 current_time = datetime.now(tz)
@@ -64,24 +66,6 @@ class AddPrompt(Resource):
         db.session.commit()
         return {"message": "Prompt added successfully"}, 201
 
-@admin_ns.route('/prompt/<int:id>')
-class UpdatePrompt(Resource):
-    @admin_ns.expect(update_prompt_model)
-    @admin_ns.response(200, 'Prompt updated successfully')
-    @admin_ns.response(404, 'Prompt not found')
-    def put(self, id):
-        """Update an existing prompt by ID"""
-        data = request.get_json()
-        prompt = LLMPrompt.query.get(id)
-        if not prompt:
-            return {"error": "Prompt not found"}, 404
-
-        prompt.prompt_text = data.get("prompt_text", prompt.prompt_text)
-        prompt.updated_by = data.get("updated_by", prompt.updated_by)
-        prompt.updated_at = current_time
-        db.session.commit()
-        return {"message": "Prompt updated successfully"}, 200
-
 @admin_ns.route('/prompt/activate/<int:id>')
 class ActivatePrompt(Resource):
     @admin_ns.response(200, 'Prompt activated successfully')
@@ -97,3 +81,35 @@ class ActivatePrompt(Resource):
         prompt.is_active = True  # Activate selected prompt
         db.session.commit()
         return {"message": f"{prompt.prompt_name} prompt has been activated."}, 200
+    
+@admin_ns.route('/prompt/<int:id>')
+class PromptOperations(Resource):
+    @admin_ns.expect(update_prompt_model)
+    @admin_ns.response(200, 'Prompt updated successfully')
+    @admin_ns.response(404, 'Prompt not found')
+    def put(self, id):
+        """Update an existing prompt by ID"""
+        data = request.get_json()
+        prompt = LLMPrompt.query.get(id)
+        if not prompt:
+            return {"error": "Prompt not found"}, 404
+        
+        # Update fields only if they are provided
+        prompt.prompt_name = data.get("prompt_name", prompt.prompt_name)
+        prompt.prompt_text = data.get("prompt_text", prompt.prompt_text)
+        prompt.updated_by = data.get("updated_by", prompt.updated_by)
+        prompt.updated_at = current_time
+        db.session.commit()
+        return {"message": "Prompt updated successfully"}, 200
+
+    @admin_ns.response(200, 'Prompt deleted successfully')
+    @admin_ns.response(404, 'Prompt not found')
+    def delete(self, id):
+        """Delete a specific prompt by ID"""
+        prompt = LLMPrompt.query.get(id)
+        if not prompt:
+            return {"error": "Prompt not found"}, 404
+
+        db.session.delete(prompt)
+        db.session.commit()
+        return {"message": "Prompt deleted successfully"}, 200
