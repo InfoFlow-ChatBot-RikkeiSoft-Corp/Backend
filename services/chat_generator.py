@@ -76,11 +76,66 @@ class ChatGenerator:
         chat_history.add_message(AIMessage(content=content))
         print(f"✅ AI 응답 메시지 저장됨: {content}")  # 디버깅 로그
 
-    def generate_answer(self, conversation_id, question, context):
+    # def generate_answer(self, conversation_id, question, context, highest_score_url):
+    #     """
+    #     질문과 문맥을 기반으로 LLM을 호출하여 답변 생성.
+    #     """
+    #     try:
+    #         print(f"context: {context}")
+    #         # context가 리스트인지 확인
+    #         if isinstance(context, list):
+    #             # 리스트를 문자열로 결합하여 하나의 텍스트로 만듦
+    #             context_text = "\n\n".join(context)
+    #             references = []  # 리스트로 전달된 경우 참조 정보를 별도로 처리하지 않음
+    #         elif isinstance(context, dict):
+    #             # context가 딕셔너리인 경우 기존 방식 사용
+    #             context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
+    #             references = context.get("references", [])
+    #         else:
+    #             # 예상치 못한 형식의 context 처리
+    #             raise ValueError("`context`는 리스트 또는 딕셔너리여야 합니다.")
+            
+    #         # 대화 히스토리 가져오기
+    #         chat_history_object = ChatService.get_recent_chat_history(conversation_id, 10)
+    #         chat_history = [history.to_dict() for history in chat_history_object]
+            
+    #         # 디버깅 로그
+    #         print(f"📊 references: {references}")
+    #         # print(f"📊 Chat History: {chat_history}")
+
+    #         # Invoke LLM with prepared data
+    #         input_data = {
+    #             "instruction": self.prompt_instruction,
+    #             "chat_history": chat_history,
+    #             "question": question,
+    #             "context": context_text,
+    #         }
+    #         input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
+    #         # print(f"📝 Debug: Input Data for LLM:\n{input_data_str}")
+
+    #         # 4. LLM 호출 및 응답 처리
+    #         response = self.llm.invoke(input_data_str)
+    #         # 응답 처리
+    #         answer = response["output"] if isinstance(response, dict) else response
+
+    #         # 사용자 질문 메시지 추가
+    #         self.add_user_message(conversation_id, question)
+    #         self.add_ai_message(conversation_id, answer)
+
+    #         # 참조 문서가 있는 경우 응답에 추가
+    #         if references:
+    #             reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
+    #             answer += f"\n\n참고 자료:\n{reference_texts}"
+    #         return answer
+    #     except Exception as e:
+    #         print(f"❌ Chain 호출 오류: {e}")
+    #         return "답변을 생성하는 중 오류가 발생했습니다."
+    def generate_answer(self, conversation_id, question, context, highest_score_url):
         """
         질문과 문맥을 기반으로 LLM을 호출하여 답변 생성.
         """
         try:
+            print(f"context: {context}")
             # context가 리스트인지 확인
             if isinstance(context, list):
                 # 리스트를 문자열로 결합하여 하나의 텍스트로 만듦
@@ -99,8 +154,7 @@ class ChatGenerator:
             chat_history = [history.to_dict() for history in chat_history_object]
             
             # 디버깅 로그
-            print(f"📊 Context Text: {context_text}")
-            print(f"📊 Chat History: {chat_history}")
+            print(f"📊 references: {references}")
 
             # Invoke LLM with prepared data
             input_data = {
@@ -110,9 +164,8 @@ class ChatGenerator:
                 "context": context_text,
             }
             input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
-            print(f"📝 Debug: Input Data for LLM:\n{input_data_str}")
 
-            # 4. LLM 호출 및 응답 처리
+            # LLM 호출 및 응답 처리
             response = self.llm.invoke(input_data_str)
             # 응답 처리
             answer = response["output"] if isinstance(response, dict) else response
@@ -125,6 +178,12 @@ class ChatGenerator:
             if references:
                 reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
                 answer += f"\n\n참고 자료:\n{reference_texts}"
+
+            # 특정 조건에 따라 highest_score_url 추가
+            default_response = "I’m sorry, I couldn’t find that information in the documents I have. I recommend reaching out to the support team for further assistance."
+            if answer != default_response:
+                answer += f"\n\nFor more details, please check this URL: {highest_score_url}"
+
             return answer
         except Exception as e:
             print(f"❌ Chain 호출 오류: {e}")
