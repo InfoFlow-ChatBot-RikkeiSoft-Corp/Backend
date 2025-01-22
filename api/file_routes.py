@@ -271,6 +271,7 @@ class UploadFile(Resource):
                         upload_date=datetime.utcnow()
                     )
                     db.session.add(weblink)
+
                     db.session.commit()
                     print("✅ URL metadata saved")
 
@@ -298,6 +299,7 @@ class UploadFile(Resource):
 
         finally:
             print("=== End Upload Debug Info ===\n")
+
 
 @file_ns.route('/list_files')
 class ListFiles(Resource):

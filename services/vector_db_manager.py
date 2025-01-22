@@ -18,11 +18,16 @@ class VectorDBManager:
         
         # Initialize embedding model based on the available API key
         if google_api_key:
+            print("Using Google API for embeddings")
             os.environ["GOOGLE_API_KEY"] = google_api_key
             self.embedding_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         elif openai_api_key:
+            print("Using OpenAI API for embeddings")
             self.embedding_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
         else:
+            print("No valid API keys found in environment variables:")
+            print(f"GOOGLE_API_KEY: {'Present' if google_api_key else 'Missing'}")
+            print(f"OPENAI_API_KEY: {'Present' if openai_api_key else 'Missing'}")
             raise ValueError("Either google_api_key or openai_api_key must be provided.")
             
         # 벡터스토어 로드 (없으면 빈 DB 생성)
