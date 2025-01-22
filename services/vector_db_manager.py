@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -5,6 +6,8 @@ from langchain_core.documents import Document
 from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_openai import OpenAI, OpenAIEmbeddings
 import os
+
+load_dotenv()
 
 class VectorDBManager:
     def __init__(self, openai_api_key, google_api_key):
