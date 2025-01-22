@@ -11,7 +11,7 @@ from services.RAG_manager import RAGManager
 import os
 from models.models import WeblinkMetadata, FileMetadata
 from flask_sqlalchemy import SQLAlchemy
-from models.models import db
+from models.models import db, Conversation, ChatHistory, Token
 
 # 환경 변수 로드
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -74,6 +74,10 @@ chat_headers_parser.add_argument('conversationId', location='headers', required=
 
 new_conversation_headers_parser = reqparse.RequestParser()
 new_conversation_headers_parser.add_argument('userId', location='headers', required=True, help='User ID header value')
+
+delete_headers_parser = reqparse.RequestParser()
+delete_headers_parser.add_argument('conversationId', location='headers', required=True, help='Conversation ID header value')
+delete_headers_parser.add_argument('userToken', location='headers', required=True, help='User token header value')
 
 # ======= Chat Namespace =======
 
@@ -253,6 +257,50 @@ class WeblinkUpload(Resource):
             db.session.rollback()
             return {"error": f"❌ Error occurred: {str(e)}"}, 500
 
+
+# ======= Delete Namespace =======
+@chat_ns.route('/delete/conversation')
+class DeleteConversation(Resource):
+    @chat_ns.doc(
+        description="Delete a conversation and its chat history.",
+        responses={
+            200: "Conversation and chat history deleted successfully.",
+            400: "Bad request: missing headers.",
+            403: "Forbidden: invalid or revoked token.",
+            404: "Not found: conversation not found or access denied.",
+            500: "Internal server error."
+        }
+    )
+    @chat_ns.expect(delete_headers_parser)  # Reuse the parser to validate headers
+    def delete(self):
+        """Delete a conversation and its chat history."""
+        conversation_id = int(request.headers.get('conversationId'))
+        user_token = request.headers.get('userToken')
+
+        if not conversation_id or not user_token:
+            return {"error": "Missing conversationId or userToken in headers"}, 400
+
+        try:
+            # Validate the token
+            token = Token.query.filter_by(token=user_token, revoked=False).first()
+            if not token:
+                return {"error": "Invalid or revoked user token"}, 403
+
+            # Check if the conversation exists and belongs to the user
+            conversation = Conversation.query.filter_by(id=conversation_id, user_id=str(token.user_id)).first()
+            if not conversation:
+                return {"error": "Conversation not found or access denied"}, 404
+
+            # Delete chat history and the conversation
+            ChatHistory.query.filter_by(conversation_id=str(conversation_id)).delete()
+            db.session.delete(conversation)
+            db.session.commit()
+
+            return {"message": f"Conversation {conversation_id} and its chat history have been deleted successfully."}, 200
+
+        except Exception as e:
+            db.session.rollback()
+            return {"error": f"An error occurred: {str(e)}"}, 500
 
 # ======= PDF Namespace =======
 @pdf_ns.route('/upload')
