@@ -54,17 +54,56 @@ class GetPrompt(Resource):
 class AddPrompt(Resource):
     @admin_ns.expect(new_prompt_model)
     @admin_ns.response(201, 'Prompt added successfully')
+    @admin_ns.response(400, 'Bad Request')
     def post(self):
         """Add a new prompt"""
-        data = request.get_json()
-        new_prompt = LLMPrompt(
-            prompt_name=data["prompt_name"],
-            prompt_text=data["prompt_text"],
-            created_by=data["created_by"]
-        )
-        db.session.add(new_prompt)
-        db.session.commit()
-        return {"message": "Prompt added successfully"}, 201
+        try:
+            print("\n=== 🆕 Adding New Prompt ===")
+            data = request.get_json()
+            print(f"Received data: {data}")
+            
+            # Validate required fields
+            if not all(key in data for key in ['prompt_name', 'prompt_text', 'created_by']):
+                print("❌ Missing required fields")
+                return {"error": "Missing required fields"}, 400
+
+            # Generate unique name if 'New Prompt' is provided
+            base_name = data["prompt_name"]
+            prompt_name = base_name
+            counter = 1
+
+            while LLMPrompt.query.filter_by(prompt_name=prompt_name).first():
+                prompt_name = f"{base_name} ({counter})"
+                counter += 1
+                print(f"Trying alternative name: {prompt_name}")
+
+            print(f"Creating new prompt with name: {prompt_name}")
+            new_prompt = LLMPrompt(
+                prompt_name=prompt_name,  # Use the unique name
+                prompt_text=data["prompt_text"],
+                created_by=data["created_by"],
+                created_at=current_time,
+                is_active=False  # Set default to inactive
+            )
+            
+            db.session.add(new_prompt)
+            db.session.commit()
+            
+            print(f"✅ Prompt '{prompt_name}' added successfully")
+            return {
+                "message": "Prompt added successfully",
+                "prompt": {
+                    "id": new_prompt.id,
+                    "name": prompt_name,
+                    "text": new_prompt.prompt_text,
+                    "is_active": new_prompt.is_active
+                }
+            }, 201
+            
+        except Exception as e:
+            print(f"❌ Error adding prompt: {str(e)}")
+            db.session.rollback()
+            return {"error": f"Failed to add prompt: {str(e)}"}, 500
 
 @admin_ns.route('/prompt/activate/<int:id>')
 class ActivatePrompt(Resource):
