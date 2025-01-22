@@ -189,14 +189,6 @@ class ChatGenerator:
             print(answer)
             answer = self.clean_answer(answer)
 
-            # Add references to the answer
-            if references:
-                reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
-                answer += f"\n\n참고 자료:\n{reference_texts}"
-            elif highest_score_url and highest_score_url != "Not available" and "Source:" not in answer:
-                # references가 없고, highest_score_url이 있으며, 아직 Source가 포함되지 않은 경우에만 추가
-                answer += f"\n\n(Source: {highest_score_url})"
-
             # 사용자 질문 메시지 추가
             self.add_user_message(conversation_id, question)
             self.add_ai_message(conversation_id, answer)
