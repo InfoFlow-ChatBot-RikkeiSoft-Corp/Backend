@@ -151,84 +151,155 @@ class UploadFile(Resource):
     @file_ns.response(500, 'Internal Server Error')
     def post(self):
         """Upload a file or a URL."""
-        args = upload_parser.parse_args()
-        username = args['username']
+        try:
+            print("\n=== 📤 Upload Request Debug Info ===")
+            
+            # 전체 요청 데이터 출력
+            print("Request Data:")
+            print(f"Files: {request.files}")
+            print(f"Form: {request.form}")
+            print(f"Headers: {request.headers}")
+            print(f"JSON: {request.get_json(silent=True)}")
+            
+            args = upload_parser.parse_args()
+            username = args['username']
+            print(f"Parsed username: {username}")
 
-        if not username:
-            return {"error": "Username not provided"}, 400
+            if not username:
+                print("❌ Error: Username not provided")
+                return {"error": "Username not provided"}, 400
 
-        if not is_admin(username):
-            return {"error": "Access denied. Only admins can upload content."}, 403
+            if not is_admin(username):
+                print(f"❌ Access denied for user: {username}")
+                return {"error": "Access denied. Only admins can upload content."}, 403
 
-        user = User.query.filter_by(username=username).first()
-        if not user:
-            return {"error": "User not found"}, 404
+            user = User.query.filter_by(username=username).first()
+            if not user:
+                print(f"❌ User not found: {username}")
+                return {"error": "User not found"}, 404
 
-        if 'file' in request.files:
-            file = request.files['file']
-            if not is_allowed_file(file.filename):
-                return {"error": "File type not allowed"}, 400
+            print(f"✅ User authenticated: {username}")
 
-            try:
-                file_metadata = process_file(file, user)
-                return {
-                    "message": "File uploaded successfully",
-                    "metadata": {
-                        "id": file_metadata.id,
-                        "name": file_metadata.name,
-                        "size": file_metadata.size,
-                        "type": file_metadata.type,
-                        "upload_date": file_metadata.upload_date.isoformat()
-                    }
-                }, 201
+            # JSON 데이터 처리
+            json_data = request.get_json(silent=True)
+            if json_data and 'url' in json_data:
+                url = json_data['url']
+                title = json_data.get('title') or url.split('/')[-1].replace('-', ' ').title()
+                
+                print(f"\n🔗 Processing URL upload from JSON:")
+                print(f"URL: {url}")
+                print(f"Title: {title}")
 
-            except ValueError as ve:
-                return {"error": str(ve)}, 400
-            except Exception as e:
-                db.session.rollback()
-                return {"error": f"An error occurred: {str(e)}"}, 500
+                if not url.startswith(('http://', 'https://')):
+                    print("❌ Invalid URL format")
+                    return {"error": "Invalid URL format. URL must start with http:// or https://"}, 400
 
-        elif args['title'] and args['url']:
-            title = args['title']
-            url = args['url']
-
-            if not url.startswith(('http://', 'https://')):
-                return {"error": "Invalid URL format. URL must start with http:// or https://"}, 400
-
-            existing_weblink = WeblinkMetadata.query.filter_by(url=url).first()
-            if existing_weblink:
-                return {"error": "This URL has already been uploaded"}, 400
-
-            try:
-                weblink = WeblinkMetadata(
-                    title=title[:1000] if len(title) > 1000 else title,
-                    url=url[:1000] if len(url) > 1000 else url,
-                    user_id=user.id,
-                    upload_date=datetime.utcnow(),
-                    description="Uploaded via web interface"
-                )
-                db.session.add(weblink)
-                db.session.commit()
-
-                doc = document_fetcher.fetch(title, url)
-                if not doc:
-                    db.session.delete(weblink)
+                try:
+                    weblink = WeblinkMetadata(
+                        title=title[:1000],
+                        url=url[:1000],
+                        user_id=user.id,
+                        upload_date=datetime.utcnow()
+                    )
+                    db.session.add(weblink)
                     db.session.commit()
-                    return {"error": "Failed to fetch document content"}, 400
+                    print("✅ URL metadata saved")
 
-                vector_db_manager.add_doc_to_db(doc)
+                    doc = document_fetcher.fetch(title, url)
+                    vector_db_manager.add_doc_to_db(doc)
+                    print("✅ Document added to vector database")
 
-                return {
-                    "message": "Weblink uploaded successfully",
-                    "metadata": weblink.to_dict()
-                }, 200
+                    return {
+                        "message": "URL uploaded successfully",
+                        "metadata": weblink.to_dict()
+                    }, 201
 
-            except Exception as e:
-                db.session.rollback()
-                return {"error": f"An error occurred: {str(e)}"}, 500
+                except Exception as e:
+                    print(f"❌ URL processing error: {str(e)}")
+                    db.session.rollback()
+                    return {"error": f"URL processing error: {str(e)}"}, 500
 
-        else:
-            return {"error": "Invalid request. Provide a file or title and URL."}, 400
+            # 파일 업로드 처리
+            elif 'file' in request.files:
+                file = request.files['file']
+                print(f"\n📁 Processing file upload: {file.filename}")
+                
+                if not file or not file.filename:
+                    print("❌ No file selected")
+                    return {"error": "No file selected"}, 400
+                
+                if not is_allowed_file(file.filename):
+                    print(f"❌ Invalid file type: {file.filename}")
+                    return {"error": f"Invalid file type. Allowed types are: {', '.join(ALLOWED_FILE_TYPES)}"}, 400
+
+                try:
+                    file_metadata = process_file(file, user)
+                    print(f"✅ File processed successfully: {file_metadata.name}")
+                    return {
+                        "message": "File uploaded successfully",
+                        "metadata": {
+                            "id": file_metadata.id,
+                            "name": file_metadata.name,
+                            "size": file_metadata.size,
+                            "type": file_metadata.type,
+                            "upload_date": file_metadata.upload_date.isoformat()
+                        }
+                    }, 201
+
+                except Exception as e:
+                    print(f"❌ File processing error: {str(e)}")
+                    return {"error": f"File processing error: {str(e)}"}, 500
+
+            # Form 데이터에서 URL 처리
+            elif request.form.get('url'):
+                url = request.form.get('url')
+                title = request.form.get('title') or url.split('/')[-1].replace('-', ' ').title()
+                
+                print(f"\n🔗 Processing URL upload:")
+                print(f"URL: {url}")
+                print(f"Title: {title}")
+
+                if not url.startswith(('http://', 'https://')):
+                    print("❌ Invalid URL format")
+                    return {"error": "Invalid URL format. URL must start with http:// or https://"}, 400
+
+                try:
+                    weblink = WeblinkMetadata(
+                        title=title[:1000],
+                        url=url[:1000],
+                        user_id=user.id,
+                        upload_date=datetime.utcnow()
+                    )
+                    db.session.add(weblink)
+
+                    db.session.commit()
+                    print("✅ URL metadata saved")
+
+                    doc = document_fetcher.fetch(title, url)
+                    vector_db_manager.add_doc_to_db(doc)
+                    print("✅ Document added to vector database")
+
+                    return {
+                        "message": "URL uploaded successfully",
+                        "metadata": weblink.to_dict()
+                    }, 201
+
+                except Exception as e:
+                    print(f"❌ URL processing error: {str(e)}")
+                    db.session.rollback()
+                    return {"error": f"URL processing error: {str(e)}"}, 500
+
+            else:
+                print("❌ No file or URL provided")
+                return {"error": "Please provide either a file or URL"}, 400
+
+        except Exception as e:
+            print(f"❌ Unexpected error: {str(e)}")
+            return {"error": f"An unexpected error occurred: {str(e)}"}, 500
+
+        finally:
+            print("=== End Upload Debug Info ===\n")
+
 
 @file_ns.route('/list_files')
 class ListFiles(Resource):

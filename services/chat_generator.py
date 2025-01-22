@@ -182,8 +182,7 @@ class ChatGenerator:
             # 사용자 질문 메시지 추가
             self.add_user_message(conversation_id, question)
             self.add_ai_message(conversation_id, answer)
-
-        
+            
             return answer
         except Exception as e:
             print(f"❌ Chain 호출 오류: {e}")

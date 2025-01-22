@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -5,6 +6,8 @@ from langchain_core.documents import Document
 from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_openai import OpenAI, OpenAIEmbeddings
 import os
+
+load_dotenv()
 
 class VectorDBManager:
     def __init__(self, openai_api_key, google_api_key):
@@ -15,11 +18,16 @@ class VectorDBManager:
         
         # Initialize embedding model based on the available API key
         if google_api_key:
+            print("Using Google API for embeddings")
             os.environ["GOOGLE_API_KEY"] = google_api_key
             self.embedding_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         elif openai_api_key:
+            print("Using OpenAI API for embeddings")
             self.embedding_model = OpenAIEmbeddings(openai_api_key=openai_api_key)
         else:
+            print("No valid API keys found in environment variables:")
+            print(f"GOOGLE_API_KEY: {'Present' if google_api_key else 'Missing'}")
+            print(f"OPENAI_API_KEY: {'Present' if openai_api_key else 'Missing'}")
             raise ValueError("Either google_api_key or openai_api_key must be provided.")
             
         # 벡터스토어 로드 (없으면 빈 DB 생성)
@@ -247,13 +255,10 @@ class VectorDBManager:
     def handle_user_query(self, query):
         # Perform similarity search
         results = self.vectorstore.similarity_search_with_score(query=query, k=10)
-        
         if not results:
             print("❌ No documents")
             raise ValueError("관련 문서를 찾을 수 없습니다.")
-        
         print(f"🌷 {results}")
-        
         # Find the document with the highest score (lowest score value)
         highest_score_doc = min(results, key=lambda x: x[1])  # Lower score is better in similarity search
 
@@ -267,3 +272,4 @@ class VectorDBManager:
         print(f"Highest score URL/Source: {highest_score_url_or_source}")
         
         return results, highest_score_url_or_source
+
