@@ -151,26 +151,43 @@ class UploadFile(Resource):
     @file_ns.response(500, 'Internal Server Error')
     def post(self):
         """Upload a file or a URL."""
+        print("\n=== 📤 Upload Request Debug Info ===")
         args = upload_parser.parse_args()
         username = args['username']
+        print(f"Username: {username}")
 
         if not username:
+            print("❌ Error: Username not provided")
             return {"error": "Username not provided"}, 400
 
         if not is_admin(username):
+            print(f"❌ Access denied for user: {username}")
             return {"error": "Access denied. Only admins can upload content."}, 403
 
         user = User.query.filter_by(username=username).first()
         if not user:
+            print(f"❌ User not found: {username}")
             return {"error": "User not found"}, 404
+
+        print(f"✅ User authenticated: {username}")
+
+        # Debug request content
+        print("\nRequest Content:")
+        print(f"Files: {request.files}")
+        print(f"Form data - Title: {args.get('title')}")
+        print(f"Form data - URL: {args.get('url')}")
 
         if 'file' in request.files:
             file = request.files['file']
+            print(f"\n📁 Processing file upload: {file.filename}")
+            
             if not is_allowed_file(file.filename):
+                print(f"❌ Invalid file type: {file.filename}")
                 return {"error": "File type not allowed"}, 400
 
             try:
                 file_metadata = process_file(file, user)
+                print(f"✅ File processed successfully: {file_metadata.name}")
                 return {
                     "message": "File uploaded successfully",
                     "metadata": {
@@ -183,20 +200,29 @@ class UploadFile(Resource):
                 }, 201
 
             except ValueError as ve:
+                print(f"❌ Validation error: {str(ve)}")
                 return {"error": str(ve)}, 400
             except Exception as e:
+                print(f"❌ Processing error: {str(e)}")
                 db.session.rollback()
                 return {"error": f"An error occurred: {str(e)}"}, 500
 
-        elif args['title'] and args['url']:
-            title = args['title']
+        elif args.get('url'):
+            print(f"\n🔗 Processing weblink upload:")
             url = args['url']
+            # title이 없으면 URL에서 생성
+            title = args.get('title') or url.split('/')[-1].replace('-', ' ').title()
+            
+            print(f"Title: {title}")
+            print(f"URL: {url}")
 
             if not url.startswith(('http://', 'https://')):
+                print("❌ Invalid URL format")
                 return {"error": "Invalid URL format. URL must start with http:// or https://"}, 400
 
             existing_weblink = WeblinkMetadata.query.filter_by(url=url).first()
             if existing_weblink:
+                print("❌ Duplicate URL")
                 return {"error": "This URL has already been uploaded"}, 400
 
             try:
@@ -209,14 +235,17 @@ class UploadFile(Resource):
                 )
                 db.session.add(weblink)
                 db.session.commit()
+                print("✅ Weblink metadata saved")
 
                 doc = document_fetcher.fetch(title, url)
                 if not doc:
+                    print("❌ Failed to fetch document content")
                     db.session.delete(weblink)
                     db.session.commit()
                     return {"error": "Failed to fetch document content"}, 400
 
                 vector_db_manager.add_doc_to_db(doc)
+                print("✅ Document added to vector database")
 
                 return {
                     "message": "Weblink uploaded successfully",
@@ -224,11 +253,15 @@ class UploadFile(Resource):
                 }, 200
 
             except Exception as e:
+                print(f"❌ Error processing weblink: {str(e)}")
                 db.session.rollback()
                 return {"error": f"An error occurred: {str(e)}"}, 500
 
         else:
-            return {"error": "Invalid request. Provide a file or title and URL."}, 400
+            print("❌ Invalid request: Neither file nor URL provided")
+            return {"error": "Invalid request. Provide either a file or URL."}, 400
+
+        print("=== End Upload Debug Info ===\n")
 
 @file_ns.route('/list_files')
 class ListFiles(Resource):
