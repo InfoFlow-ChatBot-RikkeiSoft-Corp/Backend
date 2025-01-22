@@ -131,11 +131,23 @@ class ChatGenerator:
     #     except Exception as e:
     #         print(f"❌ Chain 호출 오류: {e}")
     #         return "답변을 생성하는 중 오류가 발생했습니다."
+    import re
+
     def clean_answer(self, answer):
         """
-        Removes classification tags like (Casual) or (Informational) from the answer.
+        Removes classification tags like (Casual) or (Informational) and other unnecessary patterns 
+        such as 'response classification: ...' from the answer.
         """
-        return re.sub(r'\s*\((Casual|Informational)\)\s*\n*', ' ', answer).strip()
+        # Remove tags like (Casual) or (Informational)
+        answer = re.sub(r'\s*\((Casual|Informational)\)\s*\n*', ' ', answer).strip()
+        
+        # Remove lines like "response classification: ..."
+        answer = re.sub(r'\nResponse Classification: casual\n', '\n', answer).strip()
+
+        answer = re.sub(r'\nResponse Classification: informational\n', '\n', answer).strip()
+        
+        return answer
+
     def generate_answer(self, conversation_id, question, context, highest_score_url):
         """
         질문과 문맥을 기반으로 LLM을 호출하여 답변 생성.
