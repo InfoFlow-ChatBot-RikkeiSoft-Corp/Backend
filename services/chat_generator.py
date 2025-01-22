@@ -131,7 +131,6 @@ class ChatGenerator:
     #     except Exception as e:
     #         print(f"❌ Chain 호출 오류: {e}")
     #         return "답변을 생성하는 중 오류가 발생했습니다."
-    import re
 
     def clean_answer(self, answer):
         """
@@ -158,11 +157,11 @@ class ChatGenerator:
             if isinstance(context, list):
                 # 리스트를 문자열로 결합하여 하나의 텍스트로 만듦
                 context_text = "\n\n".join(context)
-                # references = []  # 리스트로 전달된 경우 참조 정보를 별도로 처리하지 않음
+                references = []  # 리스트로 전달된 경우의 참조 정보
             elif isinstance(context, dict):
                 # context가 딕셔너리인 경우 기존 방식 사용
                 context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
-                # references = context.get("references", [])
+                references = context.get("references", [])  # 딕셔너리에서 참조 정보 추출
             else:
                 # 예상치 못한 형식의 context 처리
                 raise ValueError("`context`는 리스트 또는 딕셔너리여야 합니다.")
@@ -180,7 +179,6 @@ class ChatGenerator:
                 "chat_history": chat_history,
                 "question": question,
                 "context": context_text,
-                "reference": highest_score_url,
             }
             input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
 
@@ -190,6 +188,14 @@ class ChatGenerator:
             answer = response["output"] if isinstance(response, dict) else response
             print(answer)
             answer = self.clean_answer(answer)
+
+            # Add references to the answer
+            if references:
+                reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
+                answer += f"\n\n참고 자료:\n{reference_texts}"
+            elif highest_score_url and highest_score_url != "Not available" and "Source:" not in answer:
+                # references가 없고, highest_score_url이 있으며, 아직 Source가 포함되지 않은 경우에만 추가
+                answer += f"\n\n(Source: {highest_score_url})"
 
             # 사용자 질문 메시지 추가
             self.add_user_message(conversation_id, question)
