@@ -261,12 +261,15 @@ class VectorDBManager:
         print(f"🌷 {results}")
         # Find the document with the highest score (lowest score value)
         highest_score_doc = min(results, key=lambda x: x[1])  # Lower score is better in similarity search
-    
+
         # Try to get 'url' or fallback to 'source', or set 'Not available' if neither exists
         highest_score_url_or_source = (
             highest_score_doc[0].metadata.get('url') or
             highest_score_doc[0].metadata.get('source') or
             'Not available'
         )
+        
         print(f"Highest score URL/Source: {highest_score_url_or_source}")
+        
         return results, highest_score_url_or_source
+

@@ -9,6 +9,7 @@ from services.prompt import get_default_prompt_template
 from operator import itemgetter
 from services.chat_service import ChatService
 import json
+import re
 
 class ChatGenerator:
     def __init__(self, retriever):
@@ -130,6 +131,11 @@ class ChatGenerator:
     #     except Exception as e:
     #         print(f"❌ Chain 호출 오류: {e}")
     #         return "답변을 생성하는 중 오류가 발생했습니다."
+    def clean_answer(self, answer):
+        """
+        Removes classification tags like (Casual) or (Informational) from the answer.
+        """
+        return re.sub(r'\s*\((Casual|Informational)\)\s*\n*', ' ', answer).strip()
     def generate_answer(self, conversation_id, question, context, highest_score_url):
         """
         질문과 문맥을 기반으로 LLM을 호출하여 답변 생성.
@@ -140,11 +146,11 @@ class ChatGenerator:
             if isinstance(context, list):
                 # 리스트를 문자열로 결합하여 하나의 텍스트로 만듦
                 context_text = "\n\n".join(context)
-                references = []  # 리스트로 전달된 경우 참조 정보를 별도로 처리하지 않음
+                # references = []  # 리스트로 전달된 경우 참조 정보를 별도로 처리하지 않음
             elif isinstance(context, dict):
                 # context가 딕셔너리인 경우 기존 방식 사용
                 context_text = context.get("context", "문맥 정보가 제공되지 않았습니다.")
-                references = context.get("references", [])
+                # references = context.get("references", [])
             else:
                 # 예상치 못한 형식의 context 처리
                 raise ValueError("`context`는 리스트 또는 딕셔너리여야 합니다.")
@@ -154,7 +160,7 @@ class ChatGenerator:
             chat_history = [history.to_dict() for history in chat_history_object]
             
             # 디버깅 로그
-            print(f"📊 references: {references}")
+            # print(f"📊 references: {references}")
 
             # Invoke LLM with prepared data
             input_data = {
@@ -162,6 +168,7 @@ class ChatGenerator:
                 "chat_history": chat_history,
                 "question": question,
                 "context": context_text,
+                "reference": highest_score_url,
             }
             input_data_str = json.dumps(input_data, indent=4, ensure_ascii=False)
 
@@ -169,21 +176,13 @@ class ChatGenerator:
             response = self.llm.invoke(input_data_str)
             # 응답 처리
             answer = response["output"] if isinstance(response, dict) else response
+            print(answer)
+            answer = self.clean_answer(answer)
 
             # 사용자 질문 메시지 추가
             self.add_user_message(conversation_id, question)
             self.add_ai_message(conversation_id, answer)
-
-            # 참조 문서가 있는 경우 응답에 추가
-            if references:
-                reference_texts = "\n".join([f"- {ref['title']} ({ref['url']})" for ref in references])
-                answer += f"\n\n참고 자료:\n{reference_texts}"
-
-            # 특정 조건에 따라 highest_score_url 추가
-            default_response = "I’m sorry, I couldn’t find that information in the documents I have. I recommend reaching out to the support team for further assistance."
-            if answer != default_response:
-                answer += f"\n\nFor more details, please check this URL/Source: {highest_score_url}"
-
+            
             return answer
         except Exception as e:
             print(f"❌ Chain 호출 오류: {e}")

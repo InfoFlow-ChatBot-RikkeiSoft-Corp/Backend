@@ -14,7 +14,10 @@ def get_default_prompt_template():
         {question} 
 
         # Context: 
-        {context} 
+        {context}
+
+        # Reference:
+        {reference}
 
         # Answer:
         """
