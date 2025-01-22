@@ -53,7 +53,7 @@ class GetPrompt(Resource):
 @admin_ns.route('/prompt')
 class AddPrompt(Resource):
     @admin_ns.expect(new_prompt_model)
-    @admin_ns.response(201, 'Prompt added successfully')
+    @admin_ns.response(201, 'Prompt added successfully')  # 응답 모델 추가
     @admin_ns.response(400, 'Bad Request')
     def post(self):
         """Add a new prompt"""

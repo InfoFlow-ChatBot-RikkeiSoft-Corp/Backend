@@ -143,7 +143,8 @@ def login():
         return jsonify({
             'message': 'Login successful',
             'token': jwt_token,
-            'is_admin': is_admin
+            'is_admin': is_admin,
+            'user_id': user.id
         }), 200
 
     except Exception as e:
