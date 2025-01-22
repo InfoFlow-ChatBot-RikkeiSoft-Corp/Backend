@@ -160,10 +160,22 @@ class UploadFile(Resource):
             print(f"Form: {request.form}")
             print(f"Headers: {request.headers}")
             print(f"JSON: {request.get_json(silent=True)}")
+            print(f"URL Parameters: {request.args}")  # URL 파라미터 출력 추가
+            print(f"Content-Type: {request.content_type}")  # Content-Type 헤더 출력 추가
+            print(f"Raw Data: {request.get_data()}")  # Raw 요청 데이터 출력 추가
             
+            # URL 파라미터에서도 URL과 title 확인
+            url = request.args.get('url') or (request.get_json(silent=True) or {}).get('url') or request.form.get('url')
+            title = request.args.get('title') or (request.get_json(silent=True) or {}).get('title') or request.form.get('title')
+
+            print(f"Final URL value: {url}")
+            print(f"Final title value: {title}")
+
             args = upload_parser.parse_args()
             username = args['username']
             print(f"Parsed username: {username}")
+            print(f"Parsed URL: {args.get('url')}")  # URL 파라미터 파싱 결과 출력
+            print(f"Parsed title: {args.get('title')}")  # title 파라미터 파싱 결과 출력
 
             if not username:
                 print("❌ Error: Username not provided")
@@ -180,13 +192,9 @@ class UploadFile(Resource):
 
             print(f"✅ User authenticated: {username}")
 
-            # JSON 데이터 처리
-            json_data = request.get_json(silent=True)
-            if json_data and 'url' in json_data:
-                url = json_data['url']
-                title = json_data.get('title') or url.split('/')[-1].replace('-', ' ').title()
-                
-                print(f"\n🔗 Processing URL upload from JSON:")
+            # URL 처리
+            if url:
+                print(f"\n🔗 Processing URL upload:")
                 print(f"URL: {url}")
                 print(f"Title: {title}")
 
@@ -195,6 +203,10 @@ class UploadFile(Resource):
                     return {"error": "Invalid URL format. URL must start with http:// or https://"}, 400
 
                 try:
+                    # title이 없으면 URL에서 생성
+                    if not title:
+                        title = url.split('/')[-1].replace('-', ' ').title()
+
                     weblink = WeblinkMetadata(
                         title=title[:1000],
                         url=url[:1000],
