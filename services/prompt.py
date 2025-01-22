@@ -16,9 +16,6 @@ def get_default_prompt_template():
         # Context: 
         {context}
 
-        # Reference:
-        {reference}
-
         # Answer:
         """
     )
