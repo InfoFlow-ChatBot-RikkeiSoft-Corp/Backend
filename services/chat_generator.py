@@ -142,9 +142,9 @@ class ChatGenerator:
         answer = re.sub(r'\s*\((Casual|Informational)\)\s*\n*', ' ', answer).strip()
         
         # Remove lines like "response classification: ..."
-        answer = re.sub(r'\nResponse Classification: casual\n', '\n', answer).strip()
+        answer = re.sub(r'Response Classification: casual', '\n', answer).strip()
 
-        answer = re.sub(r'\nResponse Classification: informational\n', '\n', answer).strip()
+        answer = re.sub(r'Response Classification: informational', '\n', answer).strip()
         
         return answer
 
